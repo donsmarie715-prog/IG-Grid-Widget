@@ -1,0 +1,12 @@
+{
+  "name": "ig-notion-grid-widget",
+  "private": true,
+  "version": "1.0.0",
+  "dependencies": {
+    "@notionhq/client": "^2.2.14"
+  },
+  "scripts": {
+    "dev": "vercel dev",
+    "start": "vercel dev"
+  }
+}
