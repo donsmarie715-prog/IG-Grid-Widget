@@ -16,7 +16,9 @@ async function loadGrid() {
     div.className = 'card';
 
     const img = document.createElement('img');
-    img.src = item.image || '';
+  const imageFiles = item.image?.files || [];
+img.src = imageFiles.length > 0 ? (imageFiles[0].file?.url || imageFiles[0].external?.url) : '';
+
     img.alt = item.title;
     div.appendChild(img);
 
