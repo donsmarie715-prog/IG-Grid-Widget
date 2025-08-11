@@ -1,118 +1,86 @@
-// ------------------------------
-// Instagram Grid Widget script
-// ------------------------------
+// Read initial filters from URL
+let selectedPlatform = new URLSearchParams(window.location.search).get('platform') || '';
+let selectedStatus   = new URLSearchParams(window.location.search).get('status')   || '';
 
-async function loadGrid() {
+const statusEl = document.getElementById('statusFilter');
+if (statusEl) statusEl.value = selectedStatus;
+
+// Activate the right platform button on load
+document.querySelectorAll('.filter').forEach(btn => {
+  if ((btn.dataset.platform || '') === selectedPlatform) btn.classList.add('active');
+});
+
+// Clicking a platform icon
+document.querySelectorAll('.filter').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.filter').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    selectedPlatform = btn.dataset.platform || '';
+    syncUrl();
+    loadGrid(true); // bust cache
+  });
+});
+
+// Status dropdown
+if (statusEl) {
+  statusEl.addEventListener('change', () => {
+    selectedStatus = statusEl.value || '';
+    syncUrl();
+    loadGrid(true);
+  });
+}
+
+// Refresh
+const refreshBtn = document.getElementById('refresh');
+if (refreshBtn) refreshBtn.addEventListener('click', () => loadGrid(true));
+
+// Keep the URL in sync so embeds can use ?status=Approved&platform=Instagram
+function syncUrl() {
+  const p = new URLSearchParams();
+  if (selectedStatus)   p.set('status', selectedStatus);
+  if (selectedPlatform) p.set('platform', selectedPlatform);
+  history.replaceState(null, '', `${location.pathname}${p.toString() ? `?${p}` : ''}`);
+}
+
+async function loadGrid(bust = false) {
+  const p = new URLSearchParams();
+  if (selectedStatus)   p.set('status', selectedStatus);
+  if (selectedPlatform) p.set('platform', selectedPlatform);
+  if (bust)             p.set('t', Date.now()); // cache-buster
+
+  const res  = await fetch(`/api/feed?${p.toString()}`);
+  const data = await res.json();
   const grid = document.getElementById('grid');
-  if (!grid) {
-    console.error('Missing #grid element in the page.');
-    return;
-  }
+  grid.innerHTML = '';
 
-  // Show a loading message each time we (re)load
-  grid.innerHTML = '<div style="padding:20px;opacity:.7">Loading posts…</div>';
+  (data.items || []).forEach(item => {
+    const div = document.createElement('div');
+    div.className = 'card';
 
-  // Read filters from query-string or (optionally) inputs on the page
-  const params = new URLSearchParams(window.location.search);
-  const status =
-    params.get('status') || document.getElementById('statusFilter')?.value || '';
-  const platform =
-    params.get('platform') || document.getElementById('platformFilter')?.value || '';
-
-  // Build API URL with only the filters that are set
-  const apiParams = new URLSearchParams();
-  if (status) apiParams.set('status', status);
-  if (platform) apiParams.set('platform', platform);
-
-  const url = `/api/feed${apiParams.toString() ? `?${apiParams.toString()}` : ''}`;
-
-  try {
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`API error: ${res.status}`);
-    const data = await res.json();
-
-    const items = Array.isArray(data.items) ? data.items : [];
-    grid.innerHTML = ''; // clear loading text
-
-    if (items.length === 0) {
-      grid.innerHTML = '<div style="padding:20px;opacity:.7">No posts found.</div>';
-      return;
+    if (item.image && item.image.startsWith('http')) {
+      const img = document.createElement('img');
+      img.src = item.image;
+      img.alt = item.title || '';
+      div.appendChild(img);
+    } else {
+      const ph = document.createElement('div');
+      ph.textContent = 'No Image';
+      Object.assign(ph.style, {
+        height: '150px', display:'grid', placeItems:'center',
+        background:'#eee', borderRadius:'10px'
+      });
+      div.appendChild(ph);
     }
 
-    items.forEach((item) => {
-      // Card wrapper
-      const div = document.createElement('div');
-      div.className = 'card';
+    if (item.status) {
+      const badge = document.createElement('div');
+      badge.className = 'badge';
+      badge.textContent = item.status;
+      div.appendChild(badge);
+    }
 
-      // Image (or placeholder if none/invalid)
-      if (item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
-        const img = document.createElement('img');
-        img.src = item.image;
-        img.alt = item.title || '';
-        img.loading = 'lazy';
-        img.decoding = 'async';
-
-        // If the image fails to load, show a fallback
-        img.onerror = () => {
-          img.remove();
-          div.appendChild(makePlaceholder());
-        };
-
-        div.appendChild(img);
-      } else {
-        div.appendChild(makePlaceholder());
-      }
-
-      // Optional: title / caption block (uncomment if you want text under the image)
-      // const meta = document.createElement('div');
-      // meta.className = 'meta';
-      // meta.textContent = item.title || '';
-      // div.appendChild(meta);
-
-      // Status badge, if present (e.g., "To Start", "Approved")
-      if (item.status) {
-        const badge = document.createElement('div');
-        badge.className = 'badge';
-        badge.textContent = item.status;
-        div.appendChild(badge);
-      }
-
-      grid.appendChild(div);
-    });
-  } catch (err) {
-    console.error(err);
-    grid.innerHTML =
-      '<div style="padding:20px;color:#b00">Sorry, something went wrong loading posts.</div>';
-  }
+    grid.appendChild(div);
+  });
 }
 
-// Helper for “No Image” placeholder box
-function makePlaceholder() {
-  const ph = document.createElement('div');
-  ph.textContent = 'No Image';
-  ph.style.height = '150px';
-  ph.style.display = 'flex';
-  ph.style.alignItems = 'center';
-  ph.style.justifyContent = 'center';
-  ph.style.background = '#eee';
-  ph.style.color = '#666';
-  ph.style.fontSize = '14px';
-  ph.style.borderRadius = '6px';
-  return ph;
-}
-
-// Optional controls: wire up refresh and filter inputs if they exist
-function wireControls() {
-  const refreshBtn = document.getElementById('refresh');
-  if (refreshBtn) refreshBtn.addEventListener('click', loadGrid);
-
-  const statusFilter = document.getElementById('statusFilter');
-  if (statusFilter) statusFilter.addEventListener('change', loadGrid);
-
-  const platformFilter = document.getElementById('platformFilter');
-  if (platformFilter) platformFilter.addEventListener('change', loadGrid);
-}
-
-// Kick things off
-wireControls();
-loadGrid();
+loadGrid(); // initial load
