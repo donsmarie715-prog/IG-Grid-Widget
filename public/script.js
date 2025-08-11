@@ -2,91 +2,74 @@
 
 function renderSkeletons(grid) {
   grid.innerHTML = '';
-  var count = 6;
-  for (var i = 0; i < count; i++) {
-    var s = document.createElement('div');
+  for (let i = 0; i < 9; i++) {
+    const s = document.createElement('div');
     s.className = 'skeleton';
     grid.appendChild(s);
   }
 }
 
-function loadGrid(){
-  var grid = document.getElementById('grid');
-  var refreshBtn = document.getElementById('refresh');
+async function loadGrid() {
+  const grid = document.getElementById('grid');
+  const refreshBtn = document.getElementById('refresh');
 
   renderSkeletons(grid);
 
-  try{
-    if (refreshBtn) refreshBtn.disabled = true;
+  try {
+    refreshBtn.disabled = true;
 
-    fetch('/api/feed', { cache: 'no-store' })
-      .then(function(res){
-        if(!res.ok) throw new Error('API ' + res.status);
-        return res.json();
-      })
-      .then(function(data){
-        var items = (data && Array.isArray(data.items)) ? data.items : [];
-        grid.innerHTML = '';
+    const res = await fetch('/api/feed', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`API ${res.status}`);
 
-        if(!items.length){
-          grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
-          return;
-        }
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    grid.innerHTML = '';
 
-        items.forEach(function(item){
-          var card = document.createElement('div');
-          card.className = 'card';
+    if (!items.length) {
+      grid.insertAdjacentHTML('beforeend',
+        `<div style="grid-column:1/-1;padding:12px;color:#666">No posts found.</div>`);
+      return;
+    }
 
-          var url = item && item.image;
-          var ok = url && /^https?:\/\//i.test(url);
+    items.forEach((item, i) => {
+      const card  = document.createElement('div');
+      card.className = 'card';
 
-          if (ok){
-            var img = document.createElement('img');
-            img.className = 'media';
-            img.src = url;
-            img.alt = (item && item.title) || '';
-            img.decoding = 'async';
-            img.loading = 'lazy';
-            img.onerror = function(){
-              var ph = document.createElement('div');
-              ph.className = 'skeleton';
-              card.innerHTML = '';
-              card.appendChild(ph);
-            };
-            card.appendChild(img);
-          } else {
-            var ph = document.createElement('div');
-            ph.className = 'skeleton';
-            card.appendChild(ph);
-          }
+      const media = document.createElement('div');
+      media.className = 'media';
 
-          if (item && item.status){
-            var badge = document.createElement('div');
-            badge.className = 'badge';
-            badge.textContent = item.status;
-            card.appendChild(badge);
-          }
+      if (item.image && /^https?:\/\//i.test(item.image)) {
+        const img = document.createElement('img');
+        img.alt = item.title || '';
+        img.decoding = 'async';
+        img.loading = i < 6 ? 'eager' : 'lazy';
+        if ('fetchPriority' in img) img.fetchPriority = i < 6 ? 'high' : 'low';
+        img.width = 1080; img.height = 1080;
+        img.src = item.image;
+        img.onerror = () => {
+          const ph = document.createElement('div');
+          ph.className = 'skeleton';
+          media.replaceChildren(ph);
+        };
+        media.appendChild(img);
+      } else {
+        const ph = document.createElement('div');
+        ph.className = 'skeleton';
+        media.appendChild(ph);
+      }
 
-          grid.appendChild(card);
-        });
-      })
-      .catch(function(err){
-        console.error('[widget] error:', err);
-        grid.innerHTML = '';
-        grid.insertAdjacentHTML('beforebegin', '<div class="error">Could not load posts. Check the console.</div>');
-      })
-      .finally(function(){
-        if (refreshBtn) refreshBtn.disabled = false;
-      });
-
-  }catch(err){
+      card.appendChild(media);
+      grid.appendChild(card);
+    });
+  } catch (err) {
     console.error('[widget] error:', err);
     grid.innerHTML = '';
-    grid.insertAdjacentHTML('beforebegin', '<div class="error">Could not load posts. Check the console.</div>');
-    if (refreshBtn) refreshBtn.disabled = false;
+    grid.insertAdjacentHTML('beforeend',
+      `<div style="grid-column:1/-1;padding:12px;color:#b91c1c">Could not load posts. Check Console.</div>`);
+  } finally {
+    refreshBtn.disabled = false;
   }
 }
 
-var refreshEl = document.getElementById('refresh');
-if (refreshEl) refreshEl.addEventListener('click', loadGrid);
+document.getElementById('refresh')?.addEventListener('click', loadGrid);
 document.addEventListener('DOMContentLoaded', loadGrid);
