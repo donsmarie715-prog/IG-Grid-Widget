@@ -4,61 +4,56 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Instagram Grid Widget</title>
-
-  <!-- Font Awesome for icons -->
-  <link
-    rel="stylesheet"
-    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-    integrity="sha512-WZ4gQ2t7ShB6rLwEwB5v1fQJf3ZqJj0x5yq6dO1bb4lR0nVdO9Qm7M3kQH2h7b3Hq9G6NqRrF7O0b0nXrCw2cw=="
-    crossorigin="anonymous"
-    referrerpolicy="no-referrer"
-  />
-
   <style>
-    :root { --gap: 16px; --badge-bg: rgba(0,0,0,0.6); --badge-color: #fff; }
-    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
-    .wrap { max-width: 1100px; padding: 24px; margin: 0 auto; }
-    h1 { margin: 0 0 18px; font-weight: 800; font-size: 36px; }
+    :root {
+      --bg:#fff;
+      --text:#111;
+      --muted:#666;
+      --pill:#f2f2f2;
+      --pill-active:#111;
+      --pill-active-text:#fff;
+      --card:#fafafa;
+      --badge:#333;
+      --badge-text:#fff;
+    }
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}
+    .wrap{max-width:1100px;margin:40px auto;padding:0 16px}
+    h1{font-size:36px;margin:0 0 20px}
 
-    .toolbar {
-      display: flex; align-items: center; gap: 14px; margin: 10px 0 24px;
+    .toolbar{display:flex;gap:14px;align-items:center;justify-content:flex-end;margin-bottom:18px;flex-wrap:wrap}
+    .platform{display:flex;gap:10px;align-items:center;background:#eee;border-radius:999px;padding:6px 10px}
+    .platform .btn{
+      width:40px;height:24px;border-radius:999px;background:var(--pill);
+      border:none;display:flex;align-items:center;justify-content:center;
+      color:var(--muted);cursor:pointer;transition:.15s transform;
+    }
+    .platform .btn.active{background:var(--pill-active);color:var(--pill-active-text)}
+    .platform .btn:active{transform:scale(.97)}
+
+    select,button.refresh{
+      height:34px;border-radius:10px;border:1px solid #e6e6e6;background:#fff;
+      padding:0 10px;cursor:pointer
+    }
+    button.refresh{display:flex;gap:8px;align-items:center}
+
+    .grid{
+      display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
+      gap:16px;
+    }
+    .card{
+      background:var(--card);border-radius:14px;overflow:hidden;position:relative;
+      aspect-ratio:1/1;display:flex;align-items:center;justify-content:center
+    }
+    .card img{width:100%;height:100%;object-fit:cover;display:block}
+    .empty{color:var(--muted);padding:40px;text-align:center}
+    .badge{
+      position:absolute;left:10px;bottom:10px;background:var(--badge);
+      color:var(--badge-text);border-radius:20px;padding:6px 10px;font-size:12px
     }
 
-    /* Platform icons (rounded pill) */
-    .platforms { display: inline-flex; gap: 8px; padding: 6px; background: #f3f3f5; border-radius: 999px; }
-    .platform-btn {
-      width: 42px; height: 42px; border-radius: 999px; display: inline-flex;
-      align-items: center; justify-content: center; background: #fff; color: #999;
-      border: 1px solid #eee; cursor: pointer; transition: all .15s ease;
-    }
-    .platform-btn.active { color: #111; border-color: #d0d0d5; box-shadow: 0 0 0 2px rgba(0,0,0,0.04) inset; }
-
-    select { padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
-    .refresh-btn {
-      padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer;
-      display: inline-flex; gap: 8px; align-items: center;
-    }
-    .refresh-btn i { transition: transform .4s ease; }
-    .refresh-btn.spin i { transform: rotate(360deg); }
-
-    /* Grid */
-    #grid {
-      display: grid; gap: var(--gap);
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      margin-top: 4px;
-    }
-    .card { position: relative; overflow: hidden; border-radius: 12px; background: #f7f7f8; min-height: 180px; }
-    .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-    .badge {
-      position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; font-size: 12px;
-      background: var(--badge-bg); color: var(--badge-color); border-radius: 999px;
-    }
-    .placeholder {
-      min-height: 180px; display: flex; align-items: center; justify-content: center;
-      color: #666; background: #eee;
-    }
-
-    .empty { color: #777; padding: 40px 0; text-align: center; }
+    /* tiny spinner while loading */
+    .spinner{width:22px;height:22px;border:3px solid #eee;border-top-color:#000;border-radius:50%;animation:spin 1s linear infinite;margin:40px auto}
+    @keyframes spin{to{transform:rotate(360deg)}}
   </style>
 </head>
 <body>
@@ -66,40 +61,41 @@
     <h1>Instagram Grid Widget</h1>
 
     <div class="toolbar">
-      <!-- Platform icons -->
-      <div class="platforms" id="platformGroup">
-        <button class="platform-btn active" data-value="">
-          <i class="fa-solid fa-layer-group" title="All"></i>
+      <!-- three “Instagram-like” mode buttons. Change data-platform
+           to match your Notion “Platform” (or Visuals Type) options -->
+      <div class="platform" id="platformGroup">
+        <button class="btn active" data-platform=""> <!-- all -->
+          <!-- grid icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
         </button>
-        <button class="platform-btn" data-value="Instagram" title="Instagram">
-          <i class="fa-brands fa-instagram"></i>
+        <button class="btn" data-platform="Reel">
+          <!-- play/reel icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="platform-btn" data-value="TikTok" title="TikTok">
-          <i class="fa-brands fa-tiktok"></i>
-        </button>
-        <button class="platform-btn" data-value="YouTube" title="YouTube">
-          <i class="fa-brands fa-youtube"></i>
+        <button class="btn" data-platform="Post">
+          <!-- camera icon -->
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5h-3.6l-1.6-2H9.2L7.6 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-8 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>
         </button>
       </div>
 
-      <!-- Status filter -->
-      <select id="statusFilter" aria-label="Status filter">
+      <select id="statusFilter" aria-label="Status">
         <option value="">Any status</option>
-        <option value="To Start">To Start</option>
-        <option value="In Progress">In Progress</option>
-        <option value="Approved">Approved</option>
-        <option value="Posted">Posted</option>
+        <option>Approved</option>
+        <option>To Start</option>
+        <option>Posted</option>
       </select>
 
-      <!-- Refresh -->
-      <button id="refresh" class="refresh-btn" type="button">
-        <i class="fa-solid fa-rotate-right"></i> Refresh
+      <button class="refresh" id="refresh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 13.65-6.65z"/></svg>
+        Refresh
       </button>
     </div>
 
-    <div id="grid" aria-live="polite">Loading Instagram posts...</div>
+    <div id="grid" class="grid"></div>
+    <div id="msg" class="empty" style="display:none"></div>
   </div>
 
+  <!-- IMPORTANT: this must point to the root /public file -->
   <script src="/script.js"></script>
 </body>
 </html>
