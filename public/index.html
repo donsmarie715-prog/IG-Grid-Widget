@@ -1,122 +1,87 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Instagram Grid</title>
-<style>
-  :root { color-scheme: light dark; }
-  *{ box-sizing:border-box }
-  body{ margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; background:#fff; color:#111 }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Instagram Grid Widget</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, Arial, sans-serif; background:#fff; color:#111; }
 
-  header{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
-    padding:16px 20px; border-bottom:1px solid #eee; position:sticky; top:0; background:#fff; z-index:10;
-  }
-  header h1{ margin:0; font-size:20px; font-weight:800 }
-  .btn{
-    border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px;
-    font-weight:600; cursor:pointer; display:inline-flex; align-items:center; gap:.5rem;
-  }
+    header {
+      position: sticky; top: 0; z-index: 10;
+      display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+      padding: 16px 20px; background:#fff; border-bottom: 1px solid #eee;
+    }
+    header h1 { margin: 0; font-size: 22px; font-weight: 800; }
 
-  #grid{
-    display:grid; grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-    gap:14px; padding:16px 20px 28px;
-  }
-  .card{ position:relative; background:#fff; border:1px solid #eee; border-radius:12px; overflow:hidden }
-  .media{ width:100%; aspect-ratio:1/1; background:#eee }
-  .media img{ width:100%; height:100%; object-fit:cover; display:block }
-  .title{ padding:10px 12px; text-align:center; font-weight:700; color:#444; border-top:1px solid #f0f0f0 }
+    .controls { display: flex; align-items: center; gap: .5rem; }
 
-  .skeleton{
-    width:100%; aspect-ratio:1/1; border-radius:12px;
-    background:linear-gradient(90deg,#eee,#f6f6f6,#eee); background-size:200% 100%;
-    animation:pulse 1s linear infinite; border:1px solid #eee;
-  }
-  @keyframes pulse{ 0%{background-position:0% 0} 100%{background-position:200% 0} }
+    select, button {
+      appearance: none; border: 1px solid #e5e7eb; background:#fff; color:#111;
+      padding: 8px 12px; border-radius: 10px; font-weight: 600; cursor: pointer;
+    }
+    button:disabled { opacity:.5; cursor: default; }
 
-  .empty,.error{ padding:12px 20px; color:#666 }
-</style>
+    #grid {
+      padding: 18px 20px 40px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .card { position: relative; }
+    .media {
+      width: 100%; aspect-ratio: 1 / 1; border-radius: 12px;
+      background:#eee; border:1px solid #eee; overflow: hidden;
+    }
+    .media img { width:100%; height:100%; object-fit: cover; display:block; }
+
+    .badge {
+      position: absolute; left: 10px; bottom: 10px;
+      background: rgba(0,0,0,.7); color:#fff; font-size: 12px;
+      padding: 4px 8px; border-radius: 999px;
+    }
+
+    .title {
+      padding: 10px 2px 0; text-align: center; font-size: 14px;
+      color:#444; font-weight: 700;
+    }
+
+    .skeleton {
+      width: 100%; aspect-ratio: 1 / 1; border-radius: 12px;
+      background: linear-gradient(90deg,#eee,#f5f5f5,#eee);
+      background-size: 200% 100%;
+      animation: pulse 1s linear infinite;
+      border: 1px solid #eee;
+    }
+    @keyframes pulse { 0% {background-position:0% 0%} 100% {background-position:200% 0%} }
+
+    .empty,.error { padding: 12px 20px; color:#666; }
+  </style>
 </head>
 <body>
   <header>
-    <h1>Instagram Grid</h1>
-    <button id="refreshBtn" class="btn" type="button" title="Refresh"><span aria-hidden="true">↻</span> Refresh</button>
+    <h1>Instagram Grid Widget</h1>
+    <div class="controls">
+      <select id="statusFilter" aria-label="Filter by status">
+        <option value="">Any status</option>
+        <option>To Start</option>
+        <option>Draft</option>
+        <option>Scheduled</option>
+        <option>Published</option>
+      </select>
+      <button id="refresh" type="button">⟳ Refresh</button>
+    </div>
   </header>
 
   <div id="grid" aria-live="polite">
+    <!-- initial skeletons -->
     <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
     <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
   </div>
 
-<script>
-(function(){
-  const GRID = document.getElementById('grid');
-  const API  = '/api/feed';
-
-  function showSkeletons(n=6){
-    GRID.innerHTML = '';
-    for (let i=0;i<n;i++) GRID.insertAdjacentHTML('beforeend','<div class="skeleton"></div>');
-  }
-
-  async function loadGrid({ bust=false } = {}){
-    showSkeletons();
-
-    const url = new URL(API, location.origin);
-    if (bust) url.searchParams.set('_ts', Date.now()); // cache-bust query
-
-    try{
-      // Force fresh JSON so signed S3 URLs are always valid
-      const res = await fetch(url, { cache:'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      const items = Array.isArray(data.items) ? data.items : [];
-
-      GRID.innerHTML = '';
-
-      if (!items.length){
-        GRID.insertAdjacentHTML('beforeend','<div class="empty">No posts found.</div>');
-        return;
-      }
-
-      items.forEach(item => {
-        const fig = document.createElement('figure');
-        fig.className = 'card';
-
-        const media = document.createElement('div');
-        media.className = 'media';
-
-        const src = (item.image || '').trim();
-        if (src && /^https?:\/\//i.test(src)){
-          const img = new Image();
-          img.src = src;
-          img.alt = item.title || '';
-          img.loading = 'lazy';
-          img.referrerPolicy = 'no-referrer';
-          img.onerror = () => { media.innerHTML = '<div class="empty">Image unavailable</div>'; };
-          media.appendChild(img);
-        } else {
-          media.innerHTML = '<div class="empty">No image</div>';
-        }
-
-        const title = document.createElement('div');
-        title.className = 'title';
-        title.textContent = item.title || '';
-
-        fig.appendChild(media);
-        fig.appendChild(title);
-        GRID.appendChild(fig);
-      });
-
-    } catch(err){
-      console.error('[grid] error', err);
-      GRID.innerHTML = '<div class="error">Could not load posts. Open Console or visit /api/feed.</div>';
-    }
-  }
-
-  document.getElementById('refreshBtn')?.addEventListener('click', () => loadGrid({ bust:true }));
-  loadGrid();
-})();
-</script>
+  <script src="/script.js"></script>
 </body>
 </html>
