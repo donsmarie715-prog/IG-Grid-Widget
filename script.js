@@ -1,70 +1,137 @@
-async function loadGrid() {
-  const gridEl = document.getElementById('grid');
+// --- Tiny helpers -----------------------------------------------------------
+const $  = (q, el=document) => el.querySelector(q);
+const $$ = (q, el=document) => [...el.querySelectorAll(q)];
 
-  // pick active platform button ('' = any)
-  const activeBtn = document.querySelector('.platform-btn.active');
-  const platform = activeBtn ? activeBtn.dataset.platform || '' : '';
+const fmtDate = (iso) => {
+  if (!iso) return '';
+  // support "2025-08-11" or ISO
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const m = d.toLocaleString(undefined, { month:'short' });
+  const day = d.toLocaleString(undefined, { day:'2-digit' });
+  return `${m} ${day}`;
+};
 
-  // status from dropdown
-  const status = document.getElementById('statusFilter')?.value || '';
+const setURLParam = (key, val) => {
+  const u = new URL(window.location);
+  if (!val) u.searchParams.delete(key);
+  else u.searchParams.set(key, val);
+  history.replaceState(null, '', u);
+};
 
-  const url = '/api/feed?' + new URLSearchParams({ status, platform });
+const getParam = (k) => new URLSearchParams(location.search).get(k) || '';
+
+// --- UI elements ------------------------------------------------------------
+const grid          = $('#grid');
+const statusSel     = $('#statusFilter');
+const platformGroup = $('#platformGroup');
+const refreshBtn    = $('#refreshBtn');
+
+// Restore UI from URL params (so shareable)
+(() => {
+  const p = getParam('platform');
+  if (p) {
+    const btn = $(`.platform-btn[data-platform="${CSS.escape(p)}"]`, platformGroup);
+    if (btn) {
+      $$('.platform-btn', platformGroup).forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    }
+  }
+  const s = getParam('status');
+  if (s) statusSel.value = s;
+})();
+
+// --- Fetch + render ---------------------------------------------------------
+async function loadGrid({ bustCache = false } = {}) {
+  // skeletons while loading
+  grid.innerHTML = '';
+  for (let i=0;i<6;i++) grid.insertAdjacentHTML('beforeend','<div class="skeleton"></div>');
+
+  // read filters (URL first, then active)
+  const status   = statusSel.value || '';
+  const platform = $('.platform-btn.active', platformGroup)?.dataset.platform || '';
+
+  setURLParam('status', status);
+  setURLParam('platform', platform);
+
+  const qs = new URLSearchParams({ status, platform });
+  const url = `/api/feed?${qs.toString()}`;
 
   try {
-    const res = await fetch(url, { cache: 'no-store' });
+    const res = await fetch(url, { cache: bustCache ? 'no-store' : 'default' });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     const items = data.items || [];
 
-    gridEl.innerHTML = '';
+    grid.innerHTML = '';
 
     if (!items.length) {
-      gridEl.insertAdjacentHTML('beforeend',
-        '<div class="empty">No posts match the current filters.</div>');
+      grid.insertAdjacentHTML('beforebegin', `<div class="empty">No posts match your filters.</div>`);
       return;
     }
 
     items.forEach(item => {
-      const div = document.createElement('div');
-      div.className = 'card';
+      const card = document.createElement('div');
+      card.className = 'card';
 
       if (item.image && /^https?:\/\//i.test(item.image)) {
-        const img = document.createElement('img');
+        const img = new Image();
         img.src = item.image;
         img.alt = item.title || '';
-        div.appendChild(img);
+        card.appendChild(img);
       } else {
-        const ph = document.createElement('div');
-        ph.className = 'skeleton';
-        div.appendChild(ph);
+        const sk = document.createElement('div');
+        sk.className = 'skeleton';
+        card.appendChild(sk);
       }
 
-      if (item.status) {
+      // date badge (top-left)
+      const d = fmtDate(item.date);
+      if (d) {
         const badge = document.createElement('div');
-        badge.className = 'badge';
-        badge.textContent = item.status;
-        div.appendChild(badge);
+        badge.className = 'date';
+        badge.textContent = d;
+        card.appendChild(badge);
       }
 
-      gridEl.appendChild(div);
+      // status pill (bottom-left)
+      if (item.status) {
+        const pill = document.createElement('div');
+        pill.className = 'pill';
+        pill.textContent = item.status;
+        card.appendChild(pill);
+      }
+
+      // Optional title under image (toggle if you like)
+      if (item.title) {
+        const t = document.createElement('div');
+        t.className = 'title';
+        t.textContent = item.title;
+        card.appendChild(t);
+      }
+
+      grid.appendChild(card);
     });
+
   } catch (err) {
     console.error('[widget] fetch error:', err);
-    gridEl.innerHTML = '<div class="error">Could not load posts (check Console).</div>';
+    grid.innerHTML = '';
+    grid.insertAdjacentHTML('beforebegin', `<div class="error">Could not load posts. Open the console for details.</div>`);
   }
 }
 
-/* -------- interactions -------- */
-document.getElementById('refreshBtn')?.addEventListener('click', loadGrid);
-document.getElementById('statusFilter')?.addEventListener('change', loadGrid);
-
-// segmented platform buttons
-document.querySelectorAll('.platform-btn').forEach(btn => {
+// --- Events -----------------------------------------------------------------
+$$('.platform-btn', platformGroup).forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
+    $$('.platform-btn', platformGroup).forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     loadGrid();
   });
 });
 
-// initial load
+statusSel.addEventListener('change', () => loadGrid());
+
+refreshBtn.addEventListener('click', () => loadGrid({ bustCache:true }));
+
+// Initial load
 loadGrid();
