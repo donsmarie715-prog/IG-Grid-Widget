@@ -5,97 +5,207 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Instagram Grid Widget</title>
   <style>
-    :root {
-      --bg:#fff;
-      --text:#111;
-      --muted:#666;
-      --pill:#f2f2f2;
-      --pill-active:#111;
-      --pill-active-text:#fff;
-      --card:#fafafa;
-      --badge:#333;
-      --badge-text:#fff;
-    }
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,sans-serif;margin:0;background:var(--bg);color:var(--text)}
-    .wrap{max-width:1100px;margin:40px auto;padding:0 16px}
-    h1{font-size:36px;margin:0 0 20px}
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; color: inherit; background: inherit; }
 
-    .toolbar{display:flex;gap:14px;align-items:center;justify-content:flex-end;margin-bottom:18px;flex-wrap:wrap}
-    .platform{display:flex;gap:10px;align-items:center;background:#eee;border-radius:999px;padding:6px 10px}
-    .platform .btn{
-      width:40px;height:24px;border-radius:999px;background:var(--pill);
-      border:none;display:flex;align-items:center;justify-content:center;
-      color:var(--muted);cursor:pointer;transition:.15s transform;
+    /* Top bar */
+    header.bar {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; padding: 16px 20px; border-bottom: 1px solid #eee;
     }
-    .platform .btn.active{background:var(--pill-active);color:var(--pill-active-text)}
-    .platform .btn:active{transform:scale(.97)}
+    header h1 { margin: 0; font-size: 28px; font-weight: 800; }
 
-    select,button.refresh{
-      height:34px;border-radius:10px;border:1px solid #e6e6e6;background:#fff;
-      padding:0 10px;cursor:pointer
-    }
-    button.refresh{display:flex;gap:8px;align-items:center}
+    .controls { display: flex; align-items: center; gap: 12px; }
 
-    .grid{
-      display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));
-      gap:16px;
+    /* Segmented platform buttons */
+    .seg {
+      display: inline-flex; gap: 6px; padding: 4px; border-radius: 999px;
+      background: #f2f2f2;
     }
-    .card{
-      background:var(--card);border-radius:14px;overflow:hidden;position:relative;
-      aspect-ratio:1/1;display:flex;align-items:center;justify-content:center
+    .seg .btn {
+      border: 0; background: transparent; padding: 8px 10px; border-radius: 999px;
+      display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #444;
     }
-    .card img{width:100%;height:100%;object-fit:cover;display:block}
-    .empty{color:var(--muted);padding:40px;text-align:center}
-    .badge{
-      position:absolute;left:10px;bottom:10px;background:var(--badge);
-      color:var(--badge-text);border-radius:20px;padding:6px 10px;font-size:12px
-    }
+    .seg .btn svg { width: 16px; height: 16px; opacity: .75; }
+    .seg .btn.active { background: #111; color: #fff; }
+    .seg .btn.active svg { opacity: 1; filter: invert(1); }
 
-    /* tiny spinner while loading */
-    .spinner{width:22px;height:22px;border:3px solid #eee;border-top-color:#000;border-radius:50%;animation:spin 1s linear infinite;margin:40px auto}
-    @keyframes spin{to{transform:rotate(360deg)}}
+    /* Dropdown + refresh */
+    select { padding: 8px 10px; border-radius: 10px; border: 1px solid #e3e3e3; }
+    .refresh { padding: 8px 12px; border-radius: 10px; border: 1px solid #e3e3e3; background: #fff; cursor: pointer; }
+    .refresh svg { width: 14px; height: 14px; margin-right: 6px; vertical-align: -2px; }
+
+    /* Grid & cards (your original styles) */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      padding: 20px;
+    }
+    .card { position: relative; }
+    .card img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
+      background: #eee;
+    }
+    .badge {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      font-size: 12px;
+      background: rgba(0,0,0,.65);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+    .empty, .error {
+      padding: 16px 20px;
+      color: #666;
+    }
+    .skeleton {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
+      background-size: 200% 100%;
+      animation: pulse 1s linear infinite;
+    }
+    @keyframes pulse {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
+
+  <!-- Top bar with icons + status + refresh -->
+  <header class="bar">
     <h1>Instagram Grid Widget</h1>
 
-    <div class="toolbar">
-      <!-- three “Instagram-like” mode buttons. Change data-platform
-           to match your Notion “Platform” (or Visuals Type) options -->
-      <div class="platform" id="platformGroup">
-        <button class="btn active" data-platform=""> <!-- all -->
-          <!-- grid icon -->
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+    <div class="controls">
+      <div class="seg" id="platformSeg">
+        <!-- ALL -->
+        <button class="btn active" type="button" data-platform="">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M10 4H4v6h6V4Zm10 0h-6v6h6V4ZM10 14H4v6h6v-6Zm10 0h-6v6h6v-6Z"/></svg>
         </button>
-        <button class="btn" data-platform="Reel">
-          <!-- play/reel icon -->
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <!-- REEL (change label to your actual Notion value if needed) -->
+        <button class="btn" type="button" data-platform="Reel" title="Reel">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7L8 5Z"/></svg>
         </button>
-        <button class="btn" data-platform="Post">
-          <!-- camera icon -->
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M20 5h-3.6l-1.6-2H9.2L7.6 5H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm-8 12a5 5 0 1 1 0-10 5 5 0 0 1 0 10zm0-2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg>
+        <!-- POST (change label to your actual Notion value if needed) -->
+        <button class="btn" type="button" data-platform="Post" title="Post">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4h10a3 3 0 0 1 3 3v10a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V7a3 3 0 0 1 3-3Zm5 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z"/></svg>
         </button>
       </div>
 
-      <select id="statusFilter" aria-label="Status">
+      <select id="statusFilter" aria-label="Status filter">
         <option value="">Any status</option>
-        <option>Approved</option>
-        <option>To Start</option>
-        <option>Posted</option>
+        <!-- add / rename to match your Notion options exactly -->
+        <option value="To Start">To Start</option>
+        <option value="Posted">Posted</option>
+        <option value="Approved">Approved</option>
       </select>
 
-      <button class="refresh" id="refresh">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 13.65-6.65z"/></svg>
+      <button id="refreshBtn" class="refresh" type="button" title="Refresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7M21 3v6h-6"/></svg>
         Refresh
       </button>
     </div>
+  </header>
 
-    <div id="grid" class="grid"></div>
-    <div id="msg" class="empty" style="display:none"></div>
+  <!-- Grid & loading skeletons -->
+  <div id="grid" aria-live="polite">
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
   </div>
 
-  <!-- IMPORTANT: this must point to the root /public file -->
-  <script src="/script.js"></script>
+  <script>
+    function currentPlatform() {
+      const active = document.querySelector('#platformSeg .btn.active');
+      return active ? active.dataset.platform : '';
+    }
+
+    async function loadGrid() {
+      const grid = document.getElementById('grid');
+      const status = document.getElementById('statusFilter')?.value || '';
+      const platform = currentPlatform();
+
+      // show skeletons on each load
+      grid.innerHTML = `
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+        <div class="skeleton"></div>
+      `;
+
+      try {
+        const url = '/api/feed?' + new URLSearchParams({ status, platform });
+        const res  = await fetch(url, { cache: 'no-store' });
+        const data = await res.json();
+        const items = data.items || [];
+
+        grid.innerHTML = ''; // clear skeletons
+
+        if (!items.length) {
+          grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
+          return;
+        }
+
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'card';
+
+          if (item.image && /^https?:\/\//i.test(item.image)) {
+            const img = document.createElement('img');
+            img.src = item.image;
+            img.alt = item.title || '';
+            div.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'skeleton';
+            div.appendChild(ph);
+          }
+
+          if (item.status) {
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = item.status;
+            div.appendChild(badge);
+          }
+
+          grid.appendChild(div);
+        });
+      } catch (err) {
+        console.error('[widget] error:', err);
+        grid.innerHTML = '';
+        grid.insertAdjacentHTML('beforebegin',
+          '<div class="error">Could not load posts. Open the Console for details.</div>');
+      }
+    }
+
+    // UI events
+    document.getElementById('statusFilter').addEventListener('change', loadGrid);
+    document.getElementById('refreshBtn').addEventListener('click', loadGrid);
+
+    document.querySelectorAll('#platformSeg .btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#platformSeg .btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        loadGrid();
+      });
+    });
+
+    // Initial load
+    loadGrid();
+  </script>
 </body>
 </html>
