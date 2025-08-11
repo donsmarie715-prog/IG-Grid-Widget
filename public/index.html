@@ -1,58 +1,154 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Instagram Grid Widget</title>
   <style>
-    body {
-      font-family: sans-serif;
-      margin: 0;
-      padding: 0;
-      background: #fff;
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:#fff; color:#111; }
+
+    header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:16px 20px; border-bottom:1px solid #eee; gap:12px;
+      position: sticky; top: 0; background: #fff; z-index: 10;
     }
-    .grid-container {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 10px;
-      padding: 10px;
+    header h1 { margin:0; font-size:20px; font-weight:800; letter-spacing:-.01em; }
+    .btn {
+      border:1px solid #e5e7eb; background:#fff; border-radius:10px; padding:8px 12px;
+      font-weight:600; cursor:pointer;
+      display:inline-flex; align-items:center; gap:.5rem;
     }
-    .grid-item {
-      border-radius: 8px;
-      overflow: hidden;
-      background: #f8f8f8;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+    #grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap:16px;
+      padding:16px 20px 28px;
     }
-    .grid-item img {
-      width: 100%;
-      height: auto;
-      display: block;
+
+    .card { 
+      background:#fff; border-radius:12px; border:1px solid #eee; 
+      overflow:hidden; display:flex; flex-direction:column;
+      box-shadow:0 1px 0 rgba(0,0,0,.04);
     }
-    .grid-item p {
-      padding: 5px 10px;
-      margin: 0;
-      font-size: 14px;
-      text-align: center;
-      color: #333;
+
+    .media {
+      position:relative; width:100%;
+      aspect-ratio:1/1; /* square */
+      background:#eee;
     }
+
+    .media img {
+      width:100%; height:100%;
+      object-fit:cover; display:block;
+    }
+
+    figcaption {
+      padding:10px 12px; text-align:center; font-weight:700; color:#444;
+      border-top:1px solid #f0f0f0; background:#fff;
+    }
+
+    .empty, .error { padding:16px 20px; color:#666; font-weight:600; }
+    .skeleton {
+      width:100%; aspect-ratio:1/1; border-radius:12px;
+      background: linear-gradient(90deg, #eee, #f6f6f6, #eee);
+      background-size: 200% 100%; animation: pulse 1s linear infinite;
+    }
+    @keyframes pulse { 0% {background-position:0% 0%} 100% {background-position:200% 0%} }
   </style>
 </head>
 <body>
-  <div class="grid-container"></div>
+  <header>
+    <h1>Instagram Grid Widget</h1>
+    <button id="refresh" class="btn" type="button" title="Reload posts">
+      <span aria-hidden="true">↻</span> Refresh
+    </button>
+  </header>
+
+  <div id="grid" aria-live="polite">
+    <!-- quick skeletons while loading -->
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+  </div>
 
   <script>
-    fetch('https://ig-grid-widget.vercel.app/api/feed')
-      .then(res => res.json())
-      .then(data => {
-        const container = document.querySelector('.grid-container');
-        container.innerHTML = data.items.map(item => `
-          <div class="grid-item">
-            <img src="${item.image}" alt="${item.title}" />
-            <p>${item.title || ''}</p>
-          </div>
-        `).join('');
-      })
-      .catch(err => console.error(err));
+    const GRID = document.getElementById('grid');
+    const FEED_URL = '/api/feed';
+
+    function showSkeletons() {
+      GRID.innerHTML = '';
+      for (let i = 0; i < 6; i++) {
+        const s = document.createElement('div');
+        s.className = 'skeleton';
+        GRID.appendChild(s);
+      }
+    }
+
+    async function loadGrid({ bust=false } = {}) {
+      showSkeletons();
+
+      const u = new URL(FEED_URL, window.location.origin);
+      if (bust) u.searchParams.set('_ts', Date.now()); // cache bust
+
+      try {
+        const res = await fetch(u.toString(), { cache: 'no-store' });
+        const data = await res.json();
+        const items = Array.isArray(data.items) ? data.items : [];
+
+        GRID.innerHTML = '';
+
+        if (!items.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No posts found.';
+          GRID.before(empty);
+          return;
+        }
+
+        items.forEach(item => {
+          const fig = document.createElement('figure');
+          fig.className = 'card';
+
+          // Media
+          const media = document.createElement('div');
+          media.className = 'media';
+
+          const src = (item.image || '').trim();
+          if (src && /^https?:\/\//i.test(src)) {
+            const img = document.createElement('img');
+            img.src = src;
+            img.alt = item.title || '';
+            img.loading = 'lazy';
+            img.referrerPolicy = 'no-referrer';
+            img.onerror = () => { media.textContent = 'No image'; media.style.display='grid'; media.style.placeItems='center'; media.style.color='#666'; };
+            media.appendChild(img);
+          } else {
+            media.textContent = 'No image';
+            media.style.display='grid'; media.style.placeItems='center'; media.style.color='#666';
+          }
+
+          // Title / caption
+          const cap = document.createElement('figcaption');
+          cap.textContent = item.title || '';
+
+          fig.appendChild(media);
+          fig.appendChild(cap);
+          GRID.appendChild(fig);
+        });
+      } catch (e) {
+        console.error('[grid] feed error:', e);
+        GRID.innerHTML = '';
+        const err = document.createElement('div');
+        err.className = 'error';
+        err.textContent = 'Could not load posts. Open Console or visit /api/feed.';
+        GRID.before(err);
+      }
+    }
+
+    document.getElementById('refresh').addEventListener('click', () => loadGrid({ bust:true }));
+    loadGrid();
   </script>
 </body>
 </html>
