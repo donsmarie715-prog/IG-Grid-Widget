@@ -1,58 +1,118 @@
-// /api/feed.js
-const { Client } = require("@notionhq/client");
+// /public/script.js  (compat, no optional chaining)
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const databaseId = process.env.DATABASE_ID;
-
-module.exports = async (req, res) => {
-  try {
-    if (!databaseId || !process.env.NOTION_TOKEN) {
-      return res.status(400).json({ error: "Missing NOTION_TOKEN or DATABASE_ID" });
-    }
-
-    // Try with sorts by "Post Date". If it fails (property renamed/missing), fallback to no sorts.
-    let resp;
-    try {
-      resp = await notion.databases.query({
-        database_id: databaseId,
-        sorts: [{ property: "Post Date", direction: "ascending" }],
-      });
-    } catch (e) {
-      console.warn("[feed] sort by 'Post Date' failed, retrying without sorts:", e?.message);
-      resp = await notion.databases.query({ database_id: databaseId });
-    }
-
-    const items = resp.results.map((page) => {
-      const p = page.properties;
-
-      const title =
-        p["Post Title"]?.title?.[0]?.plain_text ||
-        p["Name"]?.title?.[0]?.plain_text ||
-        "Untitled";
-
-      const status = p["Status"]?.select?.name || "";
-
-      // Prefer Scheduled Date if present, fallback to Post Date
-      const scheduledDate = p["Scheduled Date"]?.date?.start || null;
-      const postDate = p["Post Date"]?.date?.start || null;
-      const date = scheduledDate || postDate;
-
-      const files = p["Image"]?.files || [];
-      const image = files[0]?.file?.url || files[0]?.external?.url || null;
-
-      const caption = p["Caption"]?.rich_text?.[0]?.plain_text || "";
-      const hashtags = p["Hashtags"]?.rich_text?.[0]?.plain_text || "";
-
-      return { id: page.id, title, status, date, image, caption, hashtags };
-    });
-
-    // Optional client-side sort by date if you want guaranteed order:
-    items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
-
-    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
-    return res.status(200).json({ items });
-  } catch (e) {
-    console.error("[feed] fatal:", e);
-    return res.status(500).json({ error: "Failed to query Notion" });
+function formatBadge(dateStr){
+  if(!dateStr) return '';
+  try{
+    var d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  }catch(e){
+    return '';
   }
-};
+}
+
+function renderSkeletons(grid) {
+  grid.innerHTML = '';
+  var count = 9; // 3x3
+  for (var i = 0; i < count; i++) {
+    var s = document.createElement('div');
+    s.className = 'skeleton';
+    grid.appendChild(s);
+  }
+}
+
+function loadGrid(){
+  var grid = document.getElementById('grid');
+  var refreshBtn = document.getElementById('refresh');
+
+  renderSkeletons(grid);
+
+  try{
+    if (refreshBtn) refreshBtn.disabled = true;
+
+    fetch('/api/feed', { cache: 'no-store' })
+      .then(function(res){
+        if(!res.ok) throw new Error('API ' + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        var items = (data && Array.isArray(data.items)) ? data.items : [];
+        grid.innerHTML = '';
+
+        if(!items.length){
+          grid.insertAdjacentHTML(
+            'beforeend',
+            '<div style="grid-column:1/-1;padding:12px;color:#666;">No posts found.</div>'
+          );
+          return;
+        }
+
+        items.forEach(function(item, i){
+          var card = document.createElement('div');
+          card.className = 'card';
+
+          var badgeText = formatBadge(item && item.date);
+          if (badgeText){
+            var badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = badgeText;
+            card.appendChild(badge);
+          }
+
+          var media = document.createElement('div');
+          media.className = 'media';
+
+          var url = item && item.image;
+          var isHttp = url && /^https?:\/\//i.test(url);
+
+          if (isHttp){
+            var img = document.createElement('img');
+            img.alt = (item && item.title) || '';
+            img.decoding = 'async';
+            img.loading = (i < 6 ? 'eager' : 'lazy');
+            if ('fetchPriority' in img) img.fetchPriority = (i < 6 ? 'high' : 'low');
+            img.width = 1080;
+            img.height = 1080;
+            img.src = url;
+            img.onerror = function(){
+              var ph = document.createElement('div');
+              ph.className = 'skeleton';
+              media.innerHTML = '';
+              media.appendChild(ph);
+            };
+            media.appendChild(img);
+          } else {
+            var ph = document.createElement('div');
+            ph.className = 'skeleton';
+            media.appendChild(ph);
+          }
+
+          card.appendChild(media);
+          grid.appendChild(card);
+        });
+      })
+      .catch(function(err){
+        console.error('[widget] error:', err);
+        grid.innerHTML = '';
+        grid.insertAdjacentHTML(
+          'beforeend',
+          '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
+        );
+      })
+      .finally(function(){
+        if (refreshBtn) refreshBtn.disabled = false;
+      });
+
+  }catch(err){
+    console.error('[widget] error:', err);
+    grid.innerHTML = '';
+    grid.insertAdjacentHTML(
+      'beforeend',
+      '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
+    );
+    if (refreshBtn) refreshBtn.disabled = false;
+  }
+}
+
+var refreshEl = document.getElementById('refresh');
+if (refreshEl) refreshEl.addEventListener('click', loadGrid);
+document.addEventListener('DOMContentLoaded', loadGrid);
