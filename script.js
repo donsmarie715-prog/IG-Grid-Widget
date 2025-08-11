@@ -1,137 +1,62 @@
-// --- Tiny helpers -----------------------------------------------------------
-const $  = (q, el=document) => el.querySelector(q);
-const $$ = (q, el=document) => [...el.querySelectorAll(q)];
+const gridContainer = document.getElementById('grid');
+const refreshButton = document.getElementById('refresh-button');
+const statusEl = document.getElementById('status');
 
-const fmtDate = (iso) => {
-  if (!iso) return '';
-  // support "2025-08-11" or ISO
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  const m = d.toLocaleString(undefined, { month:'short' });
-  const day = d.toLocaleString(undefined, { day:'2-digit' });
-  return `${m} ${day}`;
-};
+const API_URL = '/api/feed';
 
-const setURLParam = (key, val) => {
-  const u = new URL(window.location);
-  if (!val) u.searchParams.delete(key);
-  else u.searchParams.set(key, val);
-  history.replaceState(null, '', u);
-};
-
-const getParam = (k) => new URLSearchParams(location.search).get(k) || '';
-
-// --- UI elements ------------------------------------------------------------
-const grid          = $('#grid');
-const statusSel     = $('#statusFilter');
-const platformGroup = $('#platformGroup');
-const refreshBtn    = $('#refreshBtn');
-
-// Restore UI from URL params (so shareable)
-(() => {
-  const p = getParam('platform');
-  if (p) {
-    const btn = $(`.platform-btn[data-platform="${CSS.escape(p)}"]`, platformGroup);
-    if (btn) {
-      $$('.platform-btn', platformGroup).forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-    }
-  }
-  const s = getParam('status');
-  if (s) statusSel.value = s;
-})();
-
-// --- Fetch + render ---------------------------------------------------------
-async function loadGrid({ bustCache = false } = {}) {
-  // skeletons while loading
-  grid.innerHTML = '';
-  for (let i=0;i<6;i++) grid.insertAdjacentHTML('beforeend','<div class="skeleton"></div>');
-
-  // read filters (URL first, then active)
-  const status   = statusSel.value || '';
-  const platform = $('.platform-btn.active', platformGroup)?.dataset.platform || '';
-
-  setURLParam('status', status);
-  setURLParam('platform', platform);
-
-  const qs = new URLSearchParams({ status, platform });
-  const url = `/api/feed?${qs.toString()}`;
-
+// Load and display the grid
+async function loadGrid() {
   try {
-    const res = await fetch(url, { cache: bustCache ? 'no-store' : 'default' });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Force fresh data on initial load (no caching)
+    console.log('[widget] Fetching grid data from', API_URL);
+    const res = await fetch(API_URL, { cache: 'no-store' });
+
+    if (!res.ok) {
+      throw new Error(`HTTP error! status: ${res.status}`);
+    }
+
     const data = await res.json();
-    const items = data.items || [];
 
-    grid.innerHTML = '';
-
-    if (!items.length) {
-      grid.insertAdjacentHTML('beforebegin', `<div class="empty">No posts match your filters.</div>`);
+    if (!data.items || data.items.length === 0) {
+      gridContainer.innerHTML = '<p>No posts found.</p>';
       return;
     }
 
-    items.forEach(item => {
+    gridContainer.innerHTML = ''; // Clear skeletons or old data
+
+    data.items.forEach(item => {
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'grid-item';
 
-      if (item.image && /^https?:\/\//i.test(item.image)) {
-        const img = new Image();
-        img.src = item.image;
-        img.alt = item.title || '';
-        card.appendChild(img);
-      } else {
-        const sk = document.createElement('div');
-        sk.className = 'skeleton';
-        card.appendChild(sk);
-      }
+      const img = document.createElement('img');
+      img.src = item.image;
+      img.alt = item.title || '';
+      img.loading = 'lazy';
 
-      // date badge (top-left)
-      const d = fmtDate(item.date);
-      if (d) {
-        const badge = document.createElement('div');
-        badge.className = 'date';
-        badge.textContent = d;
-        card.appendChild(badge);
-      }
+      const caption = document.createElement('div');
+      caption.className = 'caption';
+      caption.textContent = item.title || '';
 
-      // status pill (bottom-left)
-      if (item.status) {
-        const pill = document.createElement('div');
-        pill.className = 'pill';
-        pill.textContent = item.status;
-        card.appendChild(pill);
-      }
-
-      // Optional title under image (toggle if you like)
-      if (item.title) {
-        const t = document.createElement('div');
-        t.className = 'title';
-        t.textContent = item.title;
-        card.appendChild(t);
-      }
-
-      grid.appendChild(card);
+      card.appendChild(img);
+      card.appendChild(caption);
+      gridContainer.appendChild(card);
     });
 
+    statusEl.textContent = `Loaded ${data.items.length} post${data.items.length !== 1 ? 's' : ''}`;
   } catch (err) {
-    console.error('[widget] fetch error:', err);
-    grid.innerHTML = '';
-    grid.insertAdjacentHTML('beforebegin', `<div class="error">Could not load posts. Open the console for details.</div>`);
+    console.error('[widget] Error loading grid:', err);
+    gridContainer.innerHTML = '<p class="error">Failed to load posts.</p>';
+    statusEl.textContent = 'Error loading posts';
   }
 }
 
-// --- Events -----------------------------------------------------------------
-$$('.platform-btn', platformGroup).forEach(btn => {
-  btn.addEventListener('click', () => {
-    $$('.platform-btn', platformGroup).forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    loadGrid();
-  });
+// Refresh button fetches fresh data
+refreshButton.addEventListener('click', async () => {
+  statusEl.textContent = 'Refreshing...';
+  gridContainer.innerHTML = '<div class="skeleton-grid"></div>'; // Optional skeleton
+  await loadGrid();
 });
 
-statusSel.addEventListener('change', () => loadGrid());
+// Run on page load
+document.addEventListener('DOMContentLoaded', loadGrid);
 
-refreshBtn.addEventListener('click', () => loadGrid({ bustCache:true }));
-
-// Initial load
-loadGrid();
