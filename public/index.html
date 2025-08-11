@@ -2,188 +2,102 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Instagram Grid Widget</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Instagram Grid Widget</title>
 
-  <!-- Font: optional, looks nicer -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-
-  <!-- Font Awesome for the little icons -->
+  <!-- Font Awesome for icons -->
   <link
     rel="stylesheet"
     href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
-    integrity="sha512-aG3f7eF6Qpcv3e2Oq4e8bJfO3X5tT2s1PZ5mN3PZ8c+WJx2c2Q3aO6R16T2U9qZ5nK5v1SgS1hVv/2g0m1pUQ=="
+    integrity="sha512-WZ4gQ2t7ShB6rLwEwB5v1fQJf3ZqJj0x5yq6dO1bb4lR0nVdO9Qm7M3kQH2h7b3Hq9G6NqRrF7O0b0nXrCw2cw=="
     crossorigin="anonymous"
     referrerpolicy="no-referrer"
   />
 
   <style>
-    :root{
-      --bg:#fff;
-      --ink:#111;
-      --muted:#6a6a6a;
-      --chip:#f4f4f5;
-      --chip-ink:#3a3a3a;
-      --accent:#111;
-      --badge:#2b2b2b;
-      --card:#fff;
-      --shadow:0 1px 2px rgba(0,0,0,.06), 0 8px 24px rgba(0,0,0,.06);
-      --radius:14px;
-    }
-    *{box-sizing:border-box}
-    html,body{
-      margin:0;
-      background:var(--bg);
-      color:var(--ink);
-      font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+    :root { --gap: 16px; --badge-bg: rgba(0,0,0,0.6); --badge-color: #fff; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; }
+    .wrap { max-width: 1100px; padding: 24px; margin: 0 auto; }
+    h1 { margin: 0 0 18px; font-weight: 800; font-size: 36px; }
+
+    .toolbar {
+      display: flex; align-items: center; gap: 14px; margin: 10px 0 24px;
     }
 
-    .wrap{
-      max-width:1100px;
-      margin:48px auto;
-      padding:0 20px;
+    /* Platform icons (rounded pill) */
+    .platforms { display: inline-flex; gap: 8px; padding: 6px; background: #f3f3f5; border-radius: 999px; }
+    .platform-btn {
+      width: 42px; height: 42px; border-radius: 999px; display: inline-flex;
+      align-items: center; justify-content: center; background: #fff; color: #999;
+      border: 1px solid #eee; cursor: pointer; transition: all .15s ease;
+    }
+    .platform-btn.active { color: #111; border-color: #d0d0d5; box-shadow: 0 0 0 2px rgba(0,0,0,0.04) inset; }
+
+    select { padding: 10px 12px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
+    .refresh-btn {
+      padding: 10px 14px; border-radius: 10px; border: 1px solid #ddd; background: #fff; cursor: pointer;
+      display: inline-flex; gap: 8px; align-items: center;
+    }
+    .refresh-btn i { transition: transform .4s ease; }
+    .refresh-btn.spin i { transform: rotate(360deg); }
+
+    /* Grid */
+    #grid {
+      display: grid; gap: var(--gap);
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      margin-top: 4px;
+    }
+    .card { position: relative; overflow: hidden; border-radius: 12px; background: #f7f7f8; min-height: 180px; }
+    .card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .badge {
+      position: absolute; left: 10px; bottom: 10px; padding: 6px 10px; font-size: 12px;
+      background: var(--badge-bg); color: var(--badge-color); border-radius: 999px;
+    }
+    .placeholder {
+      min-height: 180px; display: flex; align-items: center; justify-content: center;
+      color: #666; background: #eee;
     }
 
-    .top{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:16px;
-      margin-bottom:18px;
-      flex-wrap:wrap;
-    }
-    h1{
-      margin:0 0 8px 0;
-      font-size:clamp(22px, 3vw, 36px);
-      font-weight:800;
-      letter-spacing:-.02em;
-    }
-
-    .controls{
-      display:flex;
-      align-items:center;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .icons{
-      display:flex;
-      gap:10px;
-      background:var(--chip);
-      border-radius:999px;
-      padding:6px 8px;
-    }
-    .icon-btn{
-      width:36px;height:36px;border-radius:50%;
-      display:grid;place-items:center;
-      border:none;background:transparent;cursor:pointer;color:var(--muted);
-    }
-    .icon-btn.active{ color:var(--ink); background:#fff; box-shadow:var(--shadow); }
-    .icon-btn:hover{ color:var(--ink) }
-
-    select{
-      height:36px;
-      border-radius:999px;border:1px solid #e5e7eb;
-      background:#fff; padding:0 12px; color:var(--ink);
-      outline:none; cursor:pointer;
-    }
-
-    .refresh{
-      display:inline-flex; align-items:center; gap:8px;
-      height:36px; padding:0 14px; border-radius:999px;
-      border:1px solid #e5e7eb; background:#fff; cursor:pointer;
-    }
-    .refresh .fa-rotate{ transition:transform .45s ease }
-    .refresh.spinning .fa-rotate{ transform:rotate(540deg) }
-
-    .grid{
-      margin-top:20px;
-      display:grid;
-      gap:16px;
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    }
-
-    .card{
-      position:relative;
-      overflow:hidden;
-      border-radius:var(--radius);
-      background:var(--card);
-      box-shadow:var(--shadow);
-      min-height:220px;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-    }
-    .card img{
-      width:100%;
-      height:100%;
-      object-fit:cover;
-      display:block;
-    }
-    .placeholder{
-      width:100%;
-      height:220px;
-      display:grid;place-items:center;
-      color:var(--muted);
-      background:#fafafa;
-    }
-    .badge{
-      position:absolute; left:12px; bottom:12px;
-      background:var(--badge); color:#fff;
-      padding:6px 10px; border-radius:999px;
-      font-size:12px; font-weight:600;
-      box-shadow:var(--shadow);
-    }
-
-    .empty{
-      text-align:center; color:var(--muted); padding:36px 6px;
-    }
+    .empty { color: #777; padding: 40px 0; text-align: center; }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
-      <h1>Instagram Grid Widget</h1>
+    <h1>Instagram Grid Widget</h1>
 
-      <div class="controls">
-        <!-- platform filters -->
-        <div class="icons" id="platformBar">
-          <button class="icon-btn active" data-platform="" title="All">
-            <i class="fa-solid fa-layer-group"></i>
-          </button>
-          <button class="icon-btn" data-platform="Instagram" title="Instagram">
-            <i class="fa-brands fa-instagram"></i>
-          </button>
-          <button class="icon-btn" data-platform="Reel" title="Reels">
-            <i class="fa-solid fa-clapperboard"></i>
-          </button>
-          <button class="icon-btn" data-platform="TikTok" title="TikTok">
-            <i class="fa-brands fa-tiktok"></i>
-          </button>
-        </div>
-
-        <!-- status dropdown -->
-        <select id="statusFilter" title="Status">
-          <option value="">Any status</option>
-          <option>To Start</option>
-          <option>In Progress</option>
-          <option>Approved</option>
-          <option>Posted</option>
-        </select>
-
-        <!-- refresh -->
-        <button id="refreshBtn" class="refresh" title="Refresh">
-          <i class="fa-solid fa-rotate"></i>
-          Refresh
+    <div class="toolbar">
+      <!-- Platform icons -->
+      <div class="platforms" id="platformGroup">
+        <button class="platform-btn active" data-value="">
+          <i class="fa-solid fa-layer-group" title="All"></i>
+        </button>
+        <button class="platform-btn" data-value="Instagram" title="Instagram">
+          <i class="fa-brands fa-instagram"></i>
+        </button>
+        <button class="platform-btn" data-value="TikTok" title="TikTok">
+          <i class="fa-brands fa-tiktok"></i>
+        </button>
+        <button class="platform-btn" data-value="YouTube" title="YouTube">
+          <i class="fa-brands fa-youtube"></i>
         </button>
       </div>
+
+      <!-- Status filter -->
+      <select id="statusFilter" aria-label="Status filter">
+        <option value="">Any status</option>
+        <option value="To Start">To Start</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Approved">Approved</option>
+        <option value="Posted">Posted</option>
+      </select>
+
+      <!-- Refresh -->
+      <button id="refresh" class="refresh-btn" type="button">
+        <i class="fa-solid fa-rotate-right"></i> Refresh
+      </button>
     </div>
 
-    <div id="grid" class="grid" aria-live="polite">
-      <!-- cards go here -->
-    </div>
-
-    <div id="empty" class="empty" style="display:none">No items match your filters.</div>
+    <div id="grid" aria-live="polite">Loading Instagram posts...</div>
   </div>
 
   <script src="/script.js"></script>
