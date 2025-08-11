@@ -1,100 +1,86 @@
-/* global window, document, fetch */
-(function () {
-  function qs(sel)  { return document.querySelector(sel); }
-  function qsa(sel) { return Array.from(document.querySelectorAll(sel)); }
+document.addEventListener('DOMContentLoaded', () => {
+  const grid = document.getElementById('grid');
+  const statusFilter = document.getElementById('statusFilter');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const platformBar = document.getElementById('platformBar');
 
+  // Load grid items from API
   async function loadGrid() {
-    const grid = qs('#grid');
-    if (!grid) return;
+    grid.innerHTML = ''; // clear existing
 
-    // Show skeletons while (re)loading
-    grid.innerHTML =
-      '<div class="skeleton"></div>'.repeat(6);
+    // Show skeleton loaders
+    for (let i = 0; i < 6; i++) {
+      const skeleton = document.createElement('div');
+      skeleton.className = 'skeleton';
+      grid.appendChild(skeleton);
+    }
 
     try {
-      // Read filters safely
-      const statusEl   = qs('#statusFilter');
-      const activePlat = qs('.platform-btn.active');
-      const status     = statusEl ? statusEl.value : '';
-      const platform   = activePlat ? (activePlat.dataset.platform || '') : '';
+      // Only filter by status (no platform filtering)
+      const statusEl = document.querySelector('#statusFilter');
+      const status   = statusEl ? statusEl.value : '';
+      const url = '/api/feed?' + new URLSearchParams({ status }).toString();
 
-      const url = '/api/feed?' + new URLSearchParams({ status, platform }).toString();
-
-      // Don’t cache the JSON – signed S3 URLs expire
-      const res  = await fetch(url, { cache: 'no-store' });
-      if (!res.ok) throw new Error('API ' + res.status);
+      const res = await fetch(url);
       const data = await res.json();
-      const items = Array.isArray(data.items) ? data.items : [];
 
-      grid.innerHTML = '';
+      grid.innerHTML = ''; // clear skeletons
 
-      if (!items.length) {
-        grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found for these filters.</div>');
-        return;
+      if (data.items && data.items.length > 0) {
+        data.items.forEach(item => {
+          const card = document.createElement('div');
+          card.className = 'card';
+
+          if (item.image) {
+            const img = document.createElement('img');
+            img.src = item.image;
+            img.alt = item.title || '';
+            card.appendChild(img);
+          } else {
+            const noImg = document.createElement('div');
+            noImg.className = 'no-image';
+            noImg.textContent = 'No image';
+            card.appendChild(noImg);
+          }
+
+          grid.appendChild(card);
+        });
+      } else {
+        const emptyMsg = document.createElement('p');
+        emptyMsg.textContent = 'No posts found.';
+        grid.appendChild(emptyMsg);
       }
-
-      items.forEach(item => {
-        const div = document.createElement('div');
-        div.className = 'card';
-
-        // Only create <img> if the URL looks real
-        if (item.image && /^https?:\/\//i.test(item.image)) {
-          const img = document.createElement('img');
-          img.src = item.image;
-          img.alt = item.title || '';
-          // if an image fails, show a neutral placeholder
-          img.onerror = () => { div.innerHTML = '<div class="skeleton"></div>'; };
-          div.appendChild(img);
-        } else {
-          div.innerHTML = '<div class="skeleton"></div>';
-        }
-
-        if (item.status) {
-          const badge = document.createElement('div');
-          badge.className = 'badge';
-          badge.textContent = item.status;
-          div.appendChild(badge);
-        }
-
-        if (item.title) {
-          const t = document.createElement('div');
-          t.className = 'title';
-          t.textContent = item.title;
-          div.appendChild(t);
-        }
-
-        grid.appendChild(div);
-      });
     } catch (err) {
-      console.error('[widget] load error:', err);
-      grid.innerHTML = '';
-      grid.insertAdjacentHTML('beforebegin',
-        '<div class="error">Could not load posts. Open the browser Console → look for errors from <code>/api/feed</code>.</div>');
+      console.error(err);
+      grid.innerHTML = '<p class="error">Failed to load posts.</p>';
     }
   }
 
-  // Platform buttons
-  function wireUI() {
-    const bar = qs('#platformBar');
-    if (bar) {
-      bar.addEventListener('click', (e) => {
-        const btn = e.target.closest('.platform-btn');
-        if (!btn) return;
-        qsa('.platform-btn').forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        loadGrid();
-      });
-    }
-    const statusEl = qs('#statusFilter');
-    if (statusEl) statusEl.addEventListener('change', loadGrid);
-
-    const refreshEl = qs('#refreshBtn');
-    if (refreshEl) refreshEl.addEventListener('click', loadGrid);
+  // Handle status filter change
+  if (statusFilter) {
+    statusFilter.addEventListener('change', () => {
+      loadGrid();
+    });
   }
 
-  // Make sure DOM exists first
-  window.addEventListener('DOMContentLoaded', () => {
-    wireUI();
-    loadGrid();
-  });
-})();
+  // Handle platform icon clicks (purely decorative now)
+  if (platformBar) {
+    platformBar.addEventListener('click', (e) => {
+      const btn = e.target.closest('.platform-btn');
+      if (!btn) return;
+      document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      loadGrid(); // reload grid without filtering
+    });
+  }
+
+  // Handle refresh button click
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', () => {
+      loadGrid();
+    });
+  }
+
+  // Initial load
+  loadGrid();
+});
