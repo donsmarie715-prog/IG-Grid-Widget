@@ -1,45 +1,41 @@
-async function loadGrid(cacheBust = false) {
-  const grid = document.getElementById('grid');
-  const msg  = document.getElementById('msg');
-  msg.style.display = 'none';
-  grid.innerHTML = '<div class="spinner"></div>';
+async function loadGrid() {
+  const gridEl = document.getElementById('grid');
 
-  // read current filters
-  const status   = document.getElementById('statusFilter')?.value || '';
-  const activeBtn = document.querySelector('.platform .btn.active');
-  const platform = activeBtn ? (activeBtn.dataset.platform || '') : '';
+  // pick active platform button ('' = any)
+  const activeBtn = document.querySelector('.platform-btn.active');
+  const platform = activeBtn ? activeBtn.dataset.platform || '' : '';
 
-  // build URL
-  const params = new URLSearchParams({ status, platform });
-  if (cacheBust) params.set('_ts', Date.now()); // defeat any CDN cache
-  const url = `/api/feed?${params.toString()}`;
+  // status from dropdown
+  const status = document.getElementById('statusFilter')?.value || '';
+
+  const url = '/api/feed?' + new URLSearchParams({ status, platform });
 
   try {
     const res = await fetch(url, { cache: 'no-store' });
     const data = await res.json();
-    const items = (data && data.items) ? data.items : [];
+    const items = data.items || [];
+
+    gridEl.innerHTML = '';
 
     if (!items.length) {
-      grid.innerHTML = '';
-      msg.textContent = 'No posts match your filters yet.';
-      msg.style.display = 'block';
+      gridEl.insertAdjacentHTML('beforeend',
+        '<div class="empty">No posts match the current filters.</div>');
       return;
     }
 
-    // render cards
-    grid.innerHTML = '';
     items.forEach(item => {
       const div = document.createElement('div');
       div.className = 'card';
 
-      const imgOk = item.image && String(item.image).startsWith('http');
-      if (imgOk) {
+      if (item.image && /^https?:\/\//i.test(item.image)) {
         const img = document.createElement('img');
         img.src = item.image;
-        img.alt = item.title || 'Post';
+        img.alt = item.title || '';
         div.appendChild(img);
       } else {
-        div.innerHTML = '<div class="empty">No image</div>';
+        const ph = document.createElement('div');
+        ph.className = 'skeleton';
+        div.appendChild(ph);
       }
 
       if (item.status) {
@@ -49,29 +45,26 @@ async function loadGrid(cacheBust = false) {
         div.appendChild(badge);
       }
 
-      grid.appendChild(div);
+      gridEl.appendChild(div);
     });
-
   } catch (err) {
-    console.error('Fetch error', err);
-    grid.innerHTML = '';
-    msg.textContent = 'Could not load data. Open the console or visit /api/feed to check the error.';
-    msg.style.display = 'block';
+    console.error('[widget] fetch error:', err);
+    gridEl.innerHTML = '<div class="error">Could not load posts (check Console).</div>';
   }
 }
 
-// platform buttons
-document.querySelectorAll('.platform .btn').forEach(btn => {
+/* -------- interactions -------- */
+document.getElementById('refreshBtn')?.addEventListener('click', loadGrid);
+document.getElementById('statusFilter')?.addEventListener('change', loadGrid);
+
+// segmented platform buttons
+document.querySelectorAll('.platform-btn').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.platform .btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     loadGrid();
   });
 });
 
-// dropdown & refresh
-document.getElementById('statusFilter')?.addEventListener('change', () => loadGrid());
-document.getElementById('refresh')?.addEventListener('click', () => loadGrid(true));
-
-// first paint
+// initial load
 loadGrid();
