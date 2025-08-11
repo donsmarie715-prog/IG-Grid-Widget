@@ -12,16 +12,16 @@
       --cols-mobile: 2;       /* 2 across on phones */
       --gap: 2px;             /* tiny gutter */
       --radius: 8px;          /* subtle corners */
-      --max-width: 760px;     /* <<< keep this around 740–800 for the compact look */
+      --max-width: 760px;     /* keep ~740–800 for compact look */
     }
 
     *{ box-sizing:border-box; }
-    html, body{ margin:0; padding:0; background:#fff; color:#111;
+    html,body{ margin:0; padding:0; background:#fff; color:#111;
       font-family:system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif; }
 
     .wrap{ max-width:var(--max-width); margin:0 auto; padding:6px 0; }
 
-    /* Minimal header with only Refresh */
+    /* Header with only Refresh */
     header{ display:flex; align-items:center; justify-content:flex-end;
       padding:4px 0 2px; position:sticky; top:0; z-index:5; background:#fff; }
     #refresh{
@@ -50,7 +50,7 @@
     .media{ width:100%; height:100%; }
     .media img{ width:100%; height:100%; object-fit:cover; display:block; background:#eee; }
 
-    /* Small date badge like the screenshot */
+    /* Small date badge */
     .badge{
       position:absolute; top:6px; left:6px;
       font-size:11px; font-weight:700; line-height:1;
@@ -76,78 +76,13 @@
     </header>
 
     <div id="grid" aria-live="polite">
-      <!-- skeletons -->
+      <!-- initial skeletons -->
       <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
       <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
       <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
     </div>
   </div>
 
-  <script>
-    function formatBadge(dateStr){
-      if(!dateStr) return '';
-      try{
-        const d = new Date(dateStr);
-        return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
-      }catch{ return ''; }
-    }
-
-    async function loadGrid(){
-      const grid = document.getElementById('grid');
-      const refreshBtn = document.getElementById('refresh');
-      grid.innerHTML = Array.from({length:9}, () => '<div class="skeleton"></div>').join('');
-
-      try{
-        refreshBtn.disabled = true;
-        const res = await fetch('/api/feed', { cache:'no-store' });
-        if(!res.ok) throw new Error(`API ${res.status}`);
-        const data = await res.json();
-        const items = data.items || [];
-        grid.innerHTML = '';
-
-        if(!items.length){
-          grid.innerHTML = '<div style="padding:10px;color:#666">No posts found.</div>';
-          return;
-        }
-
-        items.forEach(item => {
-          const card = document.createElement('div');
-          card.className = 'card';
-
-          const badgeText = formatBadge(item.date);
-          if (badgeText){
-            const badge = document.createElement('div');
-            badge.className = 'badge';
-            badge.textContent = badgeText;
-            card.appendChild(badge);
-          }
-
-          const media = document.createElement('div');
-          media.className = 'media';
-          if (item.image && /^https?:\/\//i.test(item.image)){
-            const img = document.createElement('img');
-            img.src = item.image;
-            img.alt = item.title || '';
-            media.appendChild(img);
-          } else {
-            const ph = document.createElement('div');
-            ph.className = 'skeleton';
-            media.appendChild(ph);
-          }
-
-          card.appendChild(media);
-          grid.appendChild(card);
-        });
-      }catch(err){
-        console.error('[widget] error:', err);
-        grid.innerHTML = '<div style="padding:10px;color:#b91c1c">Could not load posts.</div>';
-      }finally{
-        refreshBtn.disabled = false;
-      }
-    }
-
-    document.getElementById('refresh').addEventListener('click', loadGrid);
-    window.addEventListener('load', loadGrid);
-  </script>
+  <script src="./script.js" defer></script>
 </body>
 </html>
