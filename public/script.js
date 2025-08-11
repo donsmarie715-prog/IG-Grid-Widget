@@ -1,18 +1,8 @@
-// /public/script.js  (compat, no optional chaining)
-
-function formatBadge(dateStr){
-  if(!dateStr) return '';
-  try{
-    var d = new Date(dateStr);
-    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
-  }catch(e){
-    return '';
-  }
-}
+// /public/script.js
 
 function renderSkeletons(grid) {
   grid.innerHTML = '';
-  var count = 9; // 3x3
+  var count = 6;
   for (var i = 0; i < count; i++) {
     var s = document.createElement('div');
     s.className = 'skeleton';
@@ -39,64 +29,51 @@ function loadGrid(){
         grid.innerHTML = '';
 
         if(!items.length){
-          grid.insertAdjacentHTML(
-            'beforeend',
-            '<div style="grid-column:1/-1;padding:12px;color:#666;">No posts found.</div>'
-          );
+          grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
           return;
         }
 
-        items.forEach(function(item, i){
+        items.forEach(function(item){
           var card = document.createElement('div');
           card.className = 'card';
 
-          var badgeText = formatBadge(item && item.date);
-          if (badgeText){
-            var badge = document.createElement('div');
-            badge.className = 'badge';
-            badge.textContent = badgeText;
-            card.appendChild(badge);
-          }
-
-          var media = document.createElement('div');
-          media.className = 'media';
-
           var url = item && item.image;
-          var isHttp = url && /^https?:\/\//i.test(url);
+          var ok = url && /^https?:\/\//i.test(url);
 
-          if (isHttp){
+          if (ok){
             var img = document.createElement('img');
+            img.className = 'media';
+            img.src = url;
             img.alt = (item && item.title) || '';
             img.decoding = 'async';
-            img.loading = (i < 6 ? 'eager' : 'lazy');
-            if ('fetchPriority' in img) img.fetchPriority = (i < 6 ? 'high' : 'low');
-            img.width = 1080;
-            img.height = 1080;
-            img.src = url;
+            img.loading = 'lazy';
             img.onerror = function(){
               var ph = document.createElement('div');
               ph.className = 'skeleton';
-              media.innerHTML = '';
-              media.appendChild(ph);
+              card.innerHTML = '';
+              card.appendChild(ph);
             };
-            media.appendChild(img);
+            card.appendChild(img);
           } else {
             var ph = document.createElement('div');
             ph.className = 'skeleton';
-            media.appendChild(ph);
+            card.appendChild(ph);
           }
 
-          card.appendChild(media);
+          if (item && item.status){
+            var badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = item.status;
+            card.appendChild(badge);
+          }
+
           grid.appendChild(card);
         });
       })
       .catch(function(err){
         console.error('[widget] error:', err);
         grid.innerHTML = '';
-        grid.insertAdjacentHTML(
-          'beforeend',
-          '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
-        );
+        grid.insertAdjacentHTML('beforebegin', '<div class="error">Could not load posts. Check the console.</div>');
       })
       .finally(function(){
         if (refreshBtn) refreshBtn.disabled = false;
@@ -105,10 +82,7 @@ function loadGrid(){
   }catch(err){
     console.error('[widget] error:', err);
     grid.innerHTML = '';
-    grid.insertAdjacentHTML(
-      'beforeend',
-      '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
-    );
+    grid.insertAdjacentHTML('beforebegin', '<div class="error">Could not load posts. Check the console.</div>');
     if (refreshBtn) refreshBtn.disabled = false;
   }
 }
@@ -116,4 +90,3 @@ function loadGrid(){
 var refreshEl = document.getElementById('refresh');
 if (refreshEl) refreshEl.addEventListener('click', loadGrid);
 document.addEventListener('DOMContentLoaded', loadGrid);
-
