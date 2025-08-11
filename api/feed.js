@@ -1,46 +1,75 @@
-// /api/feed.js
-const { Client } = require("@notionhq/client");
+// /public/script.js
 
-const notion = new Client({ auth: process.env.NOTION_TOKEN });
-const databaseId = process.env.DATABASE_ID;
+function renderSkeletons(grid) {
+  grid.innerHTML = '';
+  for (let i = 0; i < 9; i++) {
+    const s = document.createElement('div');
+    s.className = 'skeleton';
+    grid.appendChild(s);
+  }
+}
 
-module.exports = async (req, res) => {
+async function loadGrid() {
+  const grid = document.getElementById('grid');
+  const refreshBtn = document.getElementById('refresh');
+
+  renderSkeletons(grid);
+
   try {
-    if (!databaseId || !process.env.NOTION_TOKEN) {
-      return res.status(500).json({ error: "Missing NOTION_TOKEN or DATABASE_ID" });
+    refreshBtn.disabled = true;
+
+    const res = await fetch('/api/feed', { cache: 'no-store' });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+
+    const data = await res.json();
+    const items = Array.isArray(data.items) ? data.items : [];
+    grid.innerHTML = '';
+
+    if (!items.length) {
+      grid.insertAdjacentHTML('beforeend',
+        `<div style="grid-column:1/-1;padding:12px;color:#666">No posts found.</div>`);
+      return;
     }
 
-    const resp = await notion.databases.query({
-      database_id: databaseId,
-      // change to "ascending" if you want oldest first
-      sorts: [{ property: "Post Date", direction: "descending" }],
+    items.forEach((item, i) => {
+      const card  = document.createElement('div');
+      card.className = 'card';
+
+      const media = document.createElement('div');
+      media.className = 'media';
+
+      if (item.image && /^https?:\/\//i.test(item.image)) {
+        const img = document.createElement('img');
+        img.alt = item.title || '';
+        img.decoding = 'async';
+        img.loading = i < 6 ? 'eager' : 'lazy';
+        if ('fetchPriority' in img) img.fetchPriority = i < 6 ? 'high' : 'low';
+        img.width = 1080; img.height = 1080;
+        img.src = item.image;
+        img.onerror = () => {
+          const ph = document.createElement('div');
+          ph.className = 'skeleton';
+          media.replaceChildren(ph);
+        };
+        media.appendChild(img);
+      } else {
+        const ph = document.createElement('div');
+        ph.className = 'skeleton';
+        media.appendChild(ph);
+      }
+
+      card.appendChild(media);
+      grid.appendChild(card);
     });
-
-    const items = resp.results.map((page) => {
-      const p = page.properties;
-
-      const title =
-        p["Post Title"]?.title?.[0]?.plain_text ||
-        p["Name"]?.title?.[0]?.plain_text ||
-        "Untitled";
-
-      const status = p["Status"]?.select?.name || "";
-      const date = p["Post Date"]?.date?.start || null;
-
-      // Image can be file or external
-      const files = p["Image"]?.files || [];
-      const image = files[0]?.file?.url || files[0]?.external?.url || null;
-
-      const caption = p["Caption"]?.rich_text?.[0]?.plain_text || "";
-      const hashtags = p["Hashtags"]?.rich_text?.[0]?.plain_text || "";
-
-      return { id: page.id, title, status, date, image, caption, hashtags };
-    });
-
-    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
-    res.status(200).json({ items });
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "Failed to query Notion" });
+  } catch (err) {
+    console.error('[widget] error:', err);
+    grid.innerHTML = '';
+    grid.insertAdjacentHTML('beforeend',
+      `<div style="grid-column:1/-1;padding:12px;color:#b91c1c">Could not load posts. Check Console.</div>`);
+  } finally {
+    refreshBtn.disabled = false;
   }
-};
+}
+
+document.getElementById('refresh')?.addEventListener('click', loadGrid);
+document.addEventListener('DOMContentLoaded', loadGrid);
