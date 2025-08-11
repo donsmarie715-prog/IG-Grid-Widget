@@ -1,73 +1,64 @@
+// /public/script.js
 async function loadGrid() {
   const grid = document.getElementById('grid');
   const refreshBtn = document.getElementById('refresh');
 
-  // show skeletons while loading / reloading
-  grid.innerHTML = '';
-  for (let i = 0; i < 9; i++) {
-    const sk = document.createElement('div');
-    sk.className = 'skeleton';
-    grid.appendChild(sk);
-  }
+  // show skeletons on (re)load
+  grid.innerHTML = `
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+  `;
 
   try {
     refreshBtn.disabled = true;
 
-    // (optional) If you ever add ?status=Published support via UI:
-    // const status = new URLSearchParams(location.search).get('status') || '';
-    // const url = '/api/feed?' + new URLSearchParams({ status }).toString();
-    const url = '/api/feed'; // simplest: no status filter
-
-    const res = await fetch(url, { cache: 'no-store' });
+    // no-store → proper Refresh behavior
+    const res = await fetch('/api/feed', { cache: 'no-store' });
     if (!res.ok) throw new Error(`API ${res.status}`);
+
     const data = await res.json();
     const items = data.items || [];
 
     grid.innerHTML = '';
 
     if (!items.length) {
-      grid.insertAdjacentHTML(
-        'beforebegin',
-        '<div class="empty">No posts found.</div>'
-      );
+      grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
       return;
     }
 
-    items.forEach((item) => {
-      const div = document.createElement('div');
-      div.className = 'card';
+    items.forEach(item => {
+      const card = document.createElement('div');
+      card.className = 'card';
 
-      // date badge (Scheduled Date or fallback Post Date)
-      let badge = '';
-      if (item.date) {
-        const dt = new Date(item.date);
-        const label = dt.toLocaleString('en-US', { month: 'short', day: 'numeric' }); // e.g., "Jun 23"
-        badge = `<div class="badge">${label}</div>`;
+      if (item.image && /^https?:\/\//i.test(item.image)) {
+        const img = document.createElement('img');
+        img.className = 'media';
+        img.src = item.image;
+        img.alt = item.title || '';
+        card.appendChild(img);
+      } else {
+        const ph = document.createElement('div');
+        ph.className = 'skeleton';
+        card.appendChild(ph);
       }
 
-      // image
-      const media = (item.image && /^https?:\/\//i.test(item.image))
-        ? `<div class="media"><img src="${item.image}" alt="${item.title || ''}" loading="lazy"></div>`
-        : `<div class="skeleton"></div>`;
+      if (item.status) {
+        const badge = document.createElement('div');
+        badge.className = 'badge';
+        badge.textContent = item.status;
+        card.appendChild(badge);
+      }
 
-      div.innerHTML = `${badge}${media}`;
-      grid.appendChild(div);
+      grid.appendChild(card);
     });
   } catch (err) {
-    console.error('[grid] error:', err);
+    console.error('[widget] error:', err);
     grid.innerHTML = '';
-    grid.insertAdjacentHTML(
-      'beforebegin',
-      '<div class="error">Could not load posts. Open the Console for details.</div>'
-    );
+    grid.insertAdjacentHTML('beforebegin', '<div class="error">Could not load posts. Check the console.</div>');
   } finally {
     refreshBtn.disabled = false;
   }
 }
 
-document.getElementById('refresh').addEventListener('click', () => {
-  loadGrid();
-});
-
-// initial load
+document.getElementById('refresh').addEventListener('click', loadGrid);
 loadGrid();
