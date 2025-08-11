@@ -1,75 +1,41 @@
-// /public/script.js
+import { Client } from "@notionhq/client";
 
-function renderSkeletons(grid) {
-  grid.innerHTML = '';
-  for (let i = 0; i < 9; i++) {
-    const s = document.createElement('div');
-    s.className = 'skeleton';
-    grid.appendChild(s);
-  }
-}
+const notion = new Client({
+  auth: process.env.NOTION_TOKEN,
+});
 
-async function loadGrid() {
-  const grid = document.getElementById('grid');
-  const refreshBtn = document.getElementById('refresh');
-
-  renderSkeletons(grid);
-
+export default async function handler(req, res) {
   try {
-    refreshBtn.disabled = true;
-
-    const res = await fetch('/api/feed', { cache: 'no-store' });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-
-    const data = await res.json();
-    const items = Array.isArray(data.items) ? data.items : [];
-    grid.innerHTML = '';
-
-    if (!items.length) {
-      grid.insertAdjacentHTML('beforeend',
-        `<div style="grid-column:1/-1;padding:12px;color:#666">No posts found.</div>`);
-      return;
-    }
-
-    items.forEach((item, i) => {
-      const card  = document.createElement('div');
-      card.className = 'card';
-
-      const media = document.createElement('div');
-      media.className = 'media';
-
-      if (item.image && /^https?:\/\//i.test(item.image)) {
-        const img = document.createElement('img');
-        img.alt = item.title || '';
-        img.decoding = 'async';
-        img.loading = i < 6 ? 'eager' : 'lazy';
-        if ('fetchPriority' in img) img.fetchPriority = i < 6 ? 'high' : 'low';
-        img.width = 1080; img.height = 1080;
-        img.src = item.image;
-        img.onerror = () => {
-          const ph = document.createElement('div');
-          ph.className = 'skeleton';
-          media.replaceChildren(ph);
-        };
-        media.appendChild(img);
-      } else {
-        const ph = document.createElement('div');
-        ph.className = 'skeleton';
-        media.appendChild(ph);
-      }
-
-      card.appendChild(media);
-      grid.appendChild(card);
+    const db = await notion.databases.query({
+      database_id: process.env.NOTION_DATABASE_ID,
+      sorts: [
+        {
+          property: "Scheduled Date",
+          direction: "descending",
+        },
+      ],
     });
+
+    const items = db.results.map((page) => {
+      const p = page.properties;
+
+      // Safe date retrieval
+      const scheduledDate =
+        p["Scheduled Date"]?.date?.start ||
+        p["Date"]?.date?.start ||
+        null;
+
+      return {
+        id: page.id,
+        title: p["Name"]?.title?.[0]?.plain_text || "",
+        date: scheduledDate,
+        image: p["Image"]?.files?.[0]?.file?.url || p["Image"]?.files?.[0]?.external?.url || "",
+      };
+    });
+
+    res.status(200).json({ items });
   } catch (err) {
-    console.error('[widget] error:', err);
-    grid.innerHTML = '';
-    grid.insertAdjacentHTML('beforeend',
-      `<div style="grid-column:1/-1;padding:12px;color:#b91c1c">Could not load posts. Check Console.</div>`);
-  } finally {
-    refreshBtn.disabled = false;
+    console.error("Error fetching data from Notion:", err.body || err.message || err);
+    res.status(500).json({ error: "Failed to fetch data" });
   }
 }
-
-document.getElementById('refresh')?.addEventListener('click', loadGrid);
-document.addEventListener('DOMContentLoaded', loadGrid);
