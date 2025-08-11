@@ -1,127 +1,101 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Instagram Grid Widget</title>
+
+  <!-- Icons (Font Awesome) -->
+  <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+        integrity="sha512-1ycn6IcaQQ40/J6MDQKx1C1hG1l5Q5Qz6b4HhZ6D5g1L5d7D2c9cYx+J6z2cXHcF"
+        crossorigin="anonymous" referrerpolicy="no-referrer"/>
+
   <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, Arial, sans-serif; margin: 0; }
-    header { padding: 18px 20px; font-weight: 700; }
-    #grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 12px;
-      padding: 0 20px 40px;
+    :root { --radius: 10px; }
+
+    body{
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 22px;
     }
-    .card { position: relative; }
-    .card img {
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      object-fit: cover;
-      border-radius: 10px;
-      display: block;
-      background: #eee;
+
+    /* toolbar */
+    #toolbar{
+      display:flex; 
+      flex-wrap:wrap;
+      gap:8px; 
+      align-items:center; 
+      justify-content:center; 
+      margin: 0 auto 16px;
+      max-width: 920px;
     }
-    .badge {
-      position: absolute;
-      left: 8px;
-      bottom: 8px;
-      font-size: 12px;
-      background: rgba(0,0,0,.65);
-      color: #fff;
-      padding: 4px 8px;
-      border-radius: 999px;
+    #toolbar button, #toolbar select{
+      border:1px solid #ddd;
+      background:#fff;
+      padding:6px 10px;
+      border-radius: 9999px;
+      cursor:pointer;
+      font-size:14px;
     }
-    .empty, .error {
-      padding: 16px 20px;
-      color: #666;
+    #toolbar button.active{
+      background:#000; color:#fff; border-color:#000;
     }
-    .skeleton {
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      border-radius: 10px;
-      background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
-      background-size: 200% 100%;
-      animation: pulse 1s linear infinite;
+    #toolbar .spacer{ width: 12px; }
+
+    /* grid */
+    #grid{
+      display:grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap:16px;
+      margin: 0 auto;
+      max-width: 1080px;
     }
-    @keyframes pulse {
-      0% { background-position: 0% 0%; }
-      100% { background-position: 200% 0%; }
+    .card{ position:relative; }
+    .card img{
+      width:100%; display:block; border-radius: var(--radius);
+    }
+    .badge{
+      position:absolute; left:8px; bottom:8px;
+      background: rgba(0,0,0,.6); color:#fff;
+      padding:4px 8px; border-radius: 9999px; font-size:12px;
     }
   </style>
 </head>
 <body>
-  <header>Instagram Grid Widget</header>
-  <div id="grid" aria-live="polite">
-    <!-- skeletons while loading -->
-    <div class="skeleton"></div>
-    <div class="skeleton"></div>
-    <div class="skeleton"></div>
-    <div class="skeleton"></div>
-    <div class="skeleton"></div>
-    <div class="skeleton"></div>
+  <h1>Instagram Grid Widget</h1>
+
+  <div id="toolbar">
+    <!-- Refresh -->
+    <button id="refresh" title="Refresh">
+      <i class="fa-solid fa-rotate-right"></i>
+    </button>
+
+    <span class="spacer"></span>
+
+    <!-- Platform icon filters -->
+    <button class="filter active" data-platform="" title="All">
+      <i class="fa-solid fa-layer-group"></i>
+    </button>
+    <button class="filter" data-platform="Instagram" title="Instagram">
+      <i class="fa-brands fa-instagram"></i>
+    </button>
+    <button class="filter" data-platform="TikTok" title="TikTok">
+      <i class="fa-brands fa-tiktok"></i>
+    </button>
+    <!-- add more buttons if you track other platforms -->
+
+    <!-- Optional status dropdown -->
+    <select id="statusFilter" title="Status">
+      <option value="">Any status</option>
+      <option>To Start</option>
+      <option>Approved</option>
+      <option>Posted</option>
+    </select>
   </div>
 
-  <script>
-    async function loadGrid() {
-      const grid = document.getElementById('grid');
-      try {
-        // Read optional filters safely (won’t crash if elements don’t exist)
-        const params   = new URLSearchParams(window.location.search);
-        const status   = params.get('status')   || document.getElementById('statusFilter')?.value   || '';
-        const platform = params.get('platform') || document.getElementById('platformFilter')?.value || '';
+  <div id="grid">Loading Instagram posts...</div>
 
-        const url = '/api/feed?' + new URLSearchParams({ status, platform });
-        console.log('[widget] fetching:', url);
-
-        const res   = await fetch(url);
-        const data  = await res.json();
-        const items = data.items || [];
-
-        console.log('[widget] items:', items);
-
-        grid.innerHTML = ''; // clear skeletons
-
-        if (!items.length) {
-          grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
-          return;
-        }
-
-        items.forEach(item => {
-          const div = document.createElement('div');
-          div.className = 'card';
-
-          // Only render <img> if the URL looks like a real URL
-          if (item.image && /^https?:\/\//i.test(item.image)) {
-            const img = document.createElement('img');
-            img.src = item.image;
-            img.alt = item.title || '';
-            div.appendChild(img);
-          } else {
-            const ph = document.createElement('div');
-            ph.className = 'skeleton';
-            div.appendChild(ph);
-          }
-
-          if (item.status) {
-            const badge = document.createElement('div');
-            badge.className = 'badge';
-            badge.textContent = item.status;
-            div.appendChild(badge);
-          }
-
-          grid.appendChild(div);
-        });
-      } catch (err) {
-        console.error('[widget] error:', err);
-        grid.innerHTML = '';
-        grid.insertAdjacentHTML('beforebegin',
-          '<div class="error">Could not load posts. Open the Console for details.</div>');
-      }
-    }
-
-    loadGrid();
-  </script>
+  <script src="/script.js"></script>
 </body>
 </html>
