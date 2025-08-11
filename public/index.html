@@ -1,31 +1,127 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Instagram Grid Widget</title>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      padding: 20px;
-    }
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; }
+    header { padding: 18px 20px; font-weight: 700; }
     #grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-      gap: 10px;
-      margin-top: 20px;
+      gap: 12px;
+      padding: 0 20px 40px;
     }
-    #grid img {
+    .card { position: relative; }
+    .card img {
       width: 100%;
-      border-radius: 5px;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
+      background: #eee;
+    }
+    .badge {
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      font-size: 12px;
+      background: rgba(0,0,0,.65);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 999px;
+    }
+    .empty, .error {
+      padding: 16px 20px;
+      color: #666;
+    }
+    .skeleton {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
+      background-size: 200% 100%;
+      animation: pulse 1s linear infinite;
+    }
+    @keyframes pulse {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
     }
   </style>
 </head>
 <body>
-  <h1>Instagram Grid Widget</h1>
-  <div id="grid">Loading Instagram posts...</div>
+  <header>Instagram Grid Widget</header>
+  <div id="grid" aria-live="polite">
+    <!-- skeletons while loading -->
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+  </div>
 
-  <script src="script.js"></script>
+  <script>
+    async function loadGrid() {
+      const grid = document.getElementById('grid');
+      try {
+        // Read optional filters safely (won’t crash if elements don’t exist)
+        const params   = new URLSearchParams(window.location.search);
+        const status   = params.get('status')   || document.getElementById('statusFilter')?.value   || '';
+        const platform = params.get('platform') || document.getElementById('platformFilter')?.value || '';
+
+        const url = '/api/feed?' + new URLSearchParams({ status, platform });
+        console.log('[widget] fetching:', url);
+
+        const res   = await fetch(url);
+        const data  = await res.json();
+        const items = data.items || [];
+
+        console.log('[widget] items:', items);
+
+        grid.innerHTML = ''; // clear skeletons
+
+        if (!items.length) {
+          grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
+          return;
+        }
+
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'card';
+
+          // Only render <img> if the URL looks like a real URL
+          if (item.image && /^https?:\/\//i.test(item.image)) {
+            const img = document.createElement('img');
+            img.src = item.image;
+            img.alt = item.title || '';
+            div.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'skeleton';
+            div.appendChild(ph);
+          }
+
+          if (item.status) {
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = item.status;
+            div.appendChild(badge);
+          }
+
+          grid.appendChild(div);
+        });
+      } catch (err) {
+        console.error('[widget] error:', err);
+        grid.innerHTML = '';
+        grid.insertAdjacentHTML('beforebegin',
+          '<div class="error">Could not load posts. Open the Console for details.</div>');
+      }
+    }
+
+    loadGrid();
+  </script>
 </body>
 </html>
