@@ -1,92 +1,171 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Instagram Grid</title>
-<style>
-  :root {
-    color-scheme: light dark;
-  }
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    margin: 0;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    background: #fff;
-    color: #111;
-  }
-  header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 12px 16px;
-    border-bottom: 1px solid #eee;
-    position: sticky;
-    top: 0;
-    background: #fff;
-    z-index: 10;
-  }
-  header h1 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-  }
-  .btn {
-    border: 1px solid #ccc;
-    background: #fff;
-    border-radius: 8px;
-    padding: 6px 12px;
-    font-weight: 600;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  #grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-    gap: 2px; /* Small Instagram-like gap */
-    padding: 2px;
-  }
-  .card {
-    position: relative;
-    background: #fff;
-    overflow: hidden;
-    aspect-ratio: 1 / 1; /* Square like Instagram */
-  }
-  .media {
-    width: 100%;
-    height: 100%;
-  }
-  .media img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* Fill the square like Instagram */
-    display: block;
-  }
-  .skeleton {
-    background: #eee;
-    aspect-ratio: 1 / 1;
-    animation: pulse 1.5s infinite ease-in-out;
-  }
-  @keyframes pulse {
-    0% { background-color: #eee; }
-    50% { background-color: #ddd; }
-    100% { background-color: #eee; }
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Instagram Grid Widget</title>
+
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: #fff;
+      color: #111;
+    }
+
+    /* Top bar */
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eee;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    #refresh {
+      appearance: none;
+      border: 1px solid #e5e7eb;
+      background: #fff;
+      padding: 7px 12px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    #refresh:disabled { opacity: .5; cursor: default; }
+
+    /* Instagram-style grid */
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+      gap: 2px;            /* tiny gutters like Instagram */
+      padding: 0;          /* no outer padding */
+      background: #fff;
+    }
+
+    /* Each tile */
+    .card {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1; /* perfect square */
+      background: #fafafa;
+      overflow: hidden;
+    }
+    .media {
+      width: 100%;
+      height: 100%;
+    }
+    .media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;   /* Instagram-like crop */
+      display: block;
+      background: #eee;
+    }
+
+    /* Optional: tiny hover effect (can remove if you want it dead simple) */
+    .card:hover img { transform: scale(1.01); transition: transform .12s ease; }
+
+    /* Skeletons while loading */
+    .skeleton {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
+      background-size: 200% 100%;
+      animation: pulse 1s linear infinite;
+    }
+    @keyframes pulse {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
+
+    /* Responsive “Instagram-ish” breakpoints (optional) */
+    @media (min-width: 480px)  { #grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (min-width: 768px)  { #grid { grid-template-columns: repeat(3, 1fr); } }
+    @media (min-width: 1024px) { #grid { grid-template-columns: repeat(4, 1fr); } }
+  </style>
 </head>
+
 <body>
   <header>
     <h1>Instagram Grid Widget</h1>
-    <button id="refresh" class="btn">🔄 Refresh</button>
+    <button id="refresh" type="button">Refresh</button>
   </header>
-  <main>
-    <div id="grid"></div>
-  </main>
 
-<script src="script.js"></script>
+  <div id="grid" aria-live="polite">
+    <!-- Skeletons show briefly while we fetch -->
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+    <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+  </div>
+
+  <script>
+    async function loadGrid() {
+      const grid = document.getElementById('grid');
+      const refreshBtn = document.getElementById('refresh');
+
+      // show skeletons every time we reload
+      grid.innerHTML = Array.from({length: 9}, () => '<div class="skeleton"></div>').join('');
+
+      try {
+        refreshBtn.disabled = true;
+
+        // No filters—just fetch everything. cache: 'no-store' forces fresh data.
+        const res = await fetch('/api/feed', { cache: 'no-store' });
+        if (!res.ok) throw new Error(`API ${res.status}`);
+
+        const data = await res.json();
+        const items = data.items || [];
+
+        grid.innerHTML = '';
+
+        if (!items.length) {
+          grid.innerHTML = '<div style="padding:16px;color:#666">No posts found.</div>';
+          return;
+        }
+
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'card';
+
+          const media = document.createElement('div');
+          media.className = 'media';
+
+          // Only render image if it looks like a real URL
+          if (item.image && /^https?:\/\//i.test(item.image)) {
+            const img = document.createElement('img');
+            img.src = item.image;
+            img.alt = item.title || '';
+            media.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'skeleton';
+            media.appendChild(ph);
+          }
+
+          div.appendChild(media);
+          grid.appendChild(div);
+        });
+      } catch (err) {
+        console.error('[widget] error:', err);
+        grid.innerHTML = '<div style="padding:16px;color:#b91c1c">Could not load posts. Check the console.</div>';
+      } finally {
+        refreshBtn.disabled = false;
+      }
+    }
+
+    document.getElementById('refresh').addEventListener('click', loadGrid);
+    window.addEventListener('load', loadGrid);
+  </script>
 </body>
 </html>
