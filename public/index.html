@@ -1,97 +1,167 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Instagram Grid Widget</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: system-ui, Arial, sans-serif; margin: 0; }
-    header {
-      display:flex; align-items:center; justify-content:space-between;
-      padding:18px 20px; gap:12px;
-    }
-    .left { font-weight:700; font-size:clamp(20px,3vw,32px); }
-    .right { display:flex; align-items:center; gap:12px; }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Instagram Grid Widget</title>
+<style>
+  :root { color-scheme: light dark; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#fff;color:#111}
 
-    .platform { display:inline-flex; background:#f0f0f0; border-radius:999px; padding:4px; gap:6px; }
-    .platform-btn {
-      width:36px; height:36px; border-radius:50%;
-      display:grid; place-items:center; cursor:pointer; border:none; background:transparent;
-    }
-    .platform-btn.active { background:#111; color:#fff; }
+  header{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:16px 20px;border-bottom:1px solid #eee;position:sticky;top:0;background:#fff;z-index:10
+  }
+  header h1{margin:0;font-size:20px;font-weight:800}
+  .controls{display:flex;align-items:center;gap:12px}
+  .seg{display:flex;gap:6px;background:#f1f1f3;border-radius:999px;padding:4px}
+  .platform-btn{width:36px;height:36px;border:0;border-radius:999px;display:grid;place-items:center;background:transparent;color:#555;cursor:pointer}
+  .platform-btn.active{background:#111;color:#fff}
+  select,.btn{height:36px;padding:0 12px;border:1px solid #e2e2e8;border-radius:10px;background:#fff;cursor:pointer}
+  .btn{display:inline-flex;align-items:center;gap:6px}
 
-    .btn, select { height:36px; padding:0 12px; border-radius:10px; border:1px solid #ddd; background:#fff; cursor:pointer; }
-    .btn svg { vertical-align:-2px; }
+  #grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px;padding:16px 20px 28px}
+  .card{position:relative;background:#fff;border:1px solid #eee;border-radius:12px;overflow:hidden}
+  .media{width:100%;aspect-ratio:1/1;background:#eee}
+  .media img{width:100%;height:100%;object-fit:cover;display:block}
+  .title{padding:10px 12px;text-align:center;font-weight:700;color:#444;border-top:1px solid #f0f0f0}
+  .badge{position:absolute;left:8px;bottom:8px;font-size:12px;background:rgba(0,0,0,.65);color:#fff;padding:4px 8px;border-radius:999px}
 
-    #grid {
-      display:grid; grid-template-columns: repeat(auto-fill, minmax(260px,1fr));
-      gap:18px; padding: 0 20px 40px;
-    }
-    .card { position:relative; background:#fff; border-radius:12px; overflow:hidden; border: 1px solid #eee; }
-    .card img { width:100%; aspect-ratio:1/1; object-fit:cover; display:block; background:#eee; }
-    .title {
-      font-size:14px; padding:10px 12px; border-top:1px solid #eee; color:#444;
-      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-    }
-    .badge {
-      position:absolute; left:8px; bottom:8px; font-size:12px;
-      background: rgba(0,0,0,.65); color:#fff; padding:4px 8px; border-radius:999px;
-    }
-    .empty, .error { padding: 8px 20px; color:#666; }
-    .skeleton {
-      width:100%; aspect-ratio:1/1; border-radius:12px;
-      background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
-      background-size: 200% 100%; animation: pulse 1s linear infinite;
-      border: 1px solid #eee;
-    }
-    @keyframes pulse { 0%{background-position:0% 0;} 100%{background-position:200% 0;} }
-  </style>
+  .skeleton{width:100%;aspect-ratio:1/1;border-radius:12px;background:linear-gradient(90deg,#eee,#f6f6f6,#eee);background-size:200% 100%;animation:pulse 1s linear infinite;border:1px solid #eee}
+  @keyframes pulse{0%{background-position:0% 0}100%{background-position:200% 0}}
+  .empty,.error{padding:12px 20px;color:#666}
+</style>
 </head>
 <body>
   <header>
-    <div class="left">Instagram Grid Widget</div>
-    <div class="right">
-      <!-- Platform icons -->
-      <div class="platform" id="platformBar" role="tablist" aria-label="Platform filter">
-        <button class="platform-btn active" data-platform=""   title="All" aria-label="All">
-          <!-- grid icon -->
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8v8H3V3zm10 0h8v8h-8V3zM3 13h8v8H3v-8zm10 0h8v8h-8v-8z"/></svg>
+    <h1>Instagram Grid</h1>
+    <div class="controls">
+      <div class="seg" id="platformBar" aria-label="Platform (decorative)">
+        <button class="platform-btn active" data-key="all" title="All">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>
         </button>
-        <button class="platform-btn" data-platform="Reel"  title="Reels" aria-label="Reels">
+        <button class="platform-btn" data-key="video" title="Video">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
         </button>
-        <button class="platform-btn" data-platform="Photo" title="Photos" aria-label="Photos">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5H3v14h18zm0-16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h18zM8.5 13.5l2.5 3.01 3.5-4.51L19 18H5l3.5-4.5z"/></svg>
+        <button class="platform-btn" data-key="photo" title="Photo">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-6a3 3 0 0 1 3-3zm5 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/></svg>
         </button>
       </div>
 
-      <!-- Status dropdown -->
-      <select id="statusFilter" aria-label="Status filter">
+      <select id="statusFilter" aria-label="Status">
         <option value="">Any status</option>
         <option>To Start</option>
         <option>Scheduled</option>
-        <option>Draft</option>
         <option>Published</option>
+        <option>Draft</option>
       </select>
 
-      <!-- Refresh -->
-      <button class="btn" id="refreshBtn" aria-label="Refresh">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M17.65 6.35A7.95 7.95 0 0 0 12 4V1L7 6l5 5V7a6 6 0 1 1-6 6H4a8 8 0 1 0 13.65-6.65z"/>
-        </svg>
-        Refresh
+      <button id="refreshBtn" class="btn" type="button" title="Refresh">
+        <span aria-hidden="true">↻</span> Refresh
       </button>
     </div>
   </header>
 
   <div id="grid" aria-live="polite">
-    <!-- placeholders -->
     <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
     <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
   </div>
 
-  <!-- defer = run after HTML is parsed -->
-  <script defer src="/script.js"></script>
+<script>
+(function(){
+  const grid = document.getElementById('grid');
+  const statusFilter = document.getElementById('statusFilter');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const platformBar = document.getElementById('platformBar'); // decorative only
+
+  function showSkeletons(n=6){
+    grid.innerHTML = '';
+    for (let i=0;i<n;i++){ grid.insertAdjacentHTML('beforeend','<div class="skeleton"></div>'); }
+  }
+
+  async function loadGrid({bust=false}={}){
+    showSkeletons();
+
+    const status = statusFilter?.value || '';
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (bust) params.set('_ts', Date.now());
+
+    const url = '/api/feed' + (params.toString() ? '?' + params.toString() : '');
+    console.log('[widget] GET', url);
+
+    try{
+      // no-store to ensure fresh signed S3 URLs
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+
+      grid.innerHTML = '';
+
+      if (!items.length){
+        grid.insertAdjacentHTML('beforeend','<div class="empty">No posts found.</div>');
+        return;
+      }
+
+      items.forEach(item => {
+        const fig = document.createElement('figure');
+        fig.className = 'card';
+
+        const media = document.createElement('div');
+        media.className = 'media';
+
+        const src = (item.image || '').trim();
+        if (src && /^https?:\/\//i.test(src)){
+          const img = new Image();
+          img.src = src;
+          img.alt = item.title || '';
+          img.loading = 'lazy';
+          img.referrerPolicy = 'no-referrer';
+          img.onerror = () => { media.innerHTML = '<div class="empty">Image unavailable</div>'; };
+          media.appendChild(img);
+        } else {
+          media.innerHTML = '<div class="empty">No image</div>';
+        }
+
+        const title = document.createElement('div');
+        title.className = 'title';
+        title.textContent = item.title || '';
+
+        if (item.status){
+          const badge = document.createElement('div');
+          badge.className = 'badge';
+          badge.textContent = item.status;
+          fig.appendChild(badge);
+        }
+
+        fig.appendChild(media);
+        fig.appendChild(title);
+        grid.appendChild(fig);
+      });
+
+    } catch(err){
+      console.error('[widget] load error', err);
+      grid.innerHTML = '<div class="error">Could not load posts. Open Console for details.</div>';
+    }
+  }
+
+  // Decorative icons: just toggle active state and reload (no platform filter sent)
+  platformBar?.addEventListener('click', (e) => {
+    const btn = e.target.closest('.platform-btn');
+    if (!btn) return;
+    platformBar.querySelectorAll('.platform-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    loadGrid(); // reload without platform param
+  });
+
+  statusFilter?.addEventListener('change', () => loadGrid());
+  refreshBtn?.addEventListener('click', () => loadGrid({bust:true}));
+
+  // initial paint
+  loadGrid();
+})();
+</script>
 </body>
 </html>
