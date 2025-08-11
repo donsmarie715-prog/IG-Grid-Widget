@@ -1,97 +1,118 @@
-// /public/script.js
+// /public/script.js  (compat, no optional chaining)
 
 function formatBadge(dateStr){
   if(!dateStr) return '';
   try{
-    const d = new Date(dateStr);
+    var d = new Date(dateStr);
     return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
-  }catch{ return ''; }
+  }catch(e){
+    return '';
+  }
 }
 
 function renderSkeletons(grid) {
   grid.innerHTML = '';
-  const count = 9; // a 3x3 feel on first load
-  for (let i = 0; i < count; i++) {
-    const s = document.createElement('div');
+  var count = 9; // 3x3
+  for (var i = 0; i < count; i++) {
+    var s = document.createElement('div');
     s.className = 'skeleton';
     grid.appendChild(s);
   }
 }
 
-async function loadGrid(){
-  const grid = document.getElementById('grid');
-  const refreshBtn = document.getElementById('refresh');
+function loadGrid(){
+  var grid = document.getElementById('grid');
+  var refreshBtn = document.getElementById('refresh');
 
   renderSkeletons(grid);
 
   try{
-    refreshBtn.disabled = true;
+    if (refreshBtn) refreshBtn.disabled = true;
 
-    const res = await fetch('/api/feed', { cache: 'no-store' });
-    if(!res.ok) throw new Error(`API ${res.status}`);
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
+    fetch('/api/feed', { cache: 'no-store' })
+      .then(function(res){
+        if(!res.ok) throw new Error('API ' + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        var items = (data && Array.isArray(data.items)) ? data.items : [];
+        grid.innerHTML = '';
 
-    grid.innerHTML = '';
+        if(!items.length){
+          grid.insertAdjacentHTML(
+            'beforeend',
+            '<div style="grid-column:1/-1;padding:12px;color:#666;">No posts found.</div>'
+          );
+          return;
+        }
 
-    if(!items.length){
-      grid.insertAdjacentHTML(
-        'beforeend',
-        `<div style="grid-column: 1 / -1; padding:12px; color:#666;">No posts found.</div>`
-      );
-      return;
-    }
+        items.forEach(function(item, i){
+          var card = document.createElement('div');
+          card.className = 'card';
 
-    items.forEach((item, i) => {
-      const card = document.createElement('div');
-      card.className = 'card';
+          var badgeText = formatBadge(item && item.date);
+          if (badgeText){
+            var badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = badgeText;
+            card.appendChild(badge);
+          }
 
-      const badgeText = formatBadge(item.date);
-      if (badgeText){
-        const badge = document.createElement('div');
-        badge.className = 'badge';
-        badge.textContent = badgeText;
-        card.appendChild(badge);
-      }
+          var media = document.createElement('div');
+          media.className = 'media';
 
-      const media = document.createElement('div');
-      media.className = 'media';
+          var url = item && item.image;
+          var isHttp = url && /^https?:\/\//i.test(url);
 
-      if (item.image && /^https?:\/\//i.test(item.image)){
-        const img = document.createElement('img');
-        img.alt = item.title || '';
-        img.decoding = 'async';
-        img.loading = i < 6 ? 'eager' : 'lazy';
-        if ('fetchPriority' in img) img.fetchPriority = i < 6 ? 'high' : 'low';
-        img.width = 1080;   // hint to keep square aspect
-        img.height = 1080;
-        img.src = item.image;
-        img.onerror = () => {
-          const ph = document.createElement('div');
-          ph.className = 'skeleton';
-          media.replaceChildren(ph);
-        };
-        media.appendChild(img);
-      } else {
-        const ph = document.createElement('div');
-        ph.className = 'skeleton';
-        media.appendChild(ph);
-      }
+          if (isHttp){
+            var img = document.createElement('img');
+            img.alt = (item && item.title) || '';
+            img.decoding = 'async';
+            img.loading = (i < 6 ? 'eager' : 'lazy');
+            if ('fetchPriority' in img) img.fetchPriority = (i < 6 ? 'high' : 'low');
+            img.width = 1080;
+            img.height = 1080;
+            img.src = url;
+            img.onerror = function(){
+              var ph = document.createElement('div');
+              ph.className = 'skeleton';
+              media.innerHTML = '';
+              media.appendChild(ph);
+            };
+            media.appendChild(img);
+          } else {
+            var ph = document.createElement('div');
+            ph.className = 'skeleton';
+            media.appendChild(ph);
+          }
 
-      card.appendChild(media);
-      grid.appendChild(card);
-    });
+          card.appendChild(media);
+          grid.appendChild(card);
+        });
+      })
+      .catch(function(err){
+        console.error('[widget] error:', err);
+        grid.innerHTML = '';
+        grid.insertAdjacentHTML(
+          'beforeend',
+          '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
+        );
+      })
+      .finally(function(){
+        if (refreshBtn) refreshBtn.disabled = false;
+      });
+
   }catch(err){
     console.error('[widget] error:', err);
     grid.innerHTML = '';
     grid.insertAdjacentHTML(
       'beforeend',
-      `<div style="grid-column: 1 / -1; padding:12px; color:#b91c1c">Could not load posts. Check the Console.</div>`
+      '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
     );
-  }finally{
-    refreshBtn.disabled = false;
+    if (refreshBtn) refreshBtn.disabled = false;
   }
 }
 
-document.getElementById('refresh')?.addEventListener('click', loadGrid);
+var refreshEl = document.getElementById('refresh');
+if (refreshEl) refreshEl.addEventListener('click', loadGrid);
 document.addEventListener('DOMContentLoaded', loadGrid);
