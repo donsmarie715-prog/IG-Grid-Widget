@@ -10,11 +10,17 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: "Missing NOTION_TOKEN or DATABASE_ID" });
     }
 
-    // (No filters; keep it simple and robust)
-    const resp = await notion.databases.query({
-      database_id: databaseId,
-      sorts: [{ property: "Post Date", direction: "ascending" }],
-    });
+    // Try with sorts by "Post Date". If it fails (property renamed/missing), fallback to no sorts.
+    let resp;
+    try {
+      resp = await notion.databases.query({
+        database_id: databaseId,
+        sorts: [{ property: "Post Date", direction: "ascending" }],
+      });
+    } catch (e) {
+      console.warn("[feed] sort by 'Post Date' failed, retrying without sorts:", e?.message);
+      resp = await notion.databases.query({ database_id: databaseId });
+    }
 
     const items = resp.results.map((page) => {
       const p = page.properties;
@@ -40,10 +46,13 @@ module.exports = async (req, res) => {
       return { id: page.id, title, status, date, image, caption, hashtags };
     });
 
+    // Optional client-side sort by date if you want guaranteed order:
+    items.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
+
     res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
     return res.status(200).json({ items });
   } catch (e) {
-    console.error(e);
+    console.error("[feed] fatal:", e);
     return res.status(500).json({ error: "Failed to query Notion" });
   }
 };
