@@ -1,101 +1,77 @@
-// Helper: tiny sleep for nice spinner feel
-const wait = (ms) => new Promise(r => setTimeout(r, ms));
-
-async function loadGrid() {
+async function loadGrid(cacheBust = false) {
   const grid = document.getElementById('grid');
-  const empty = document.getElementById('empty');
-  const refreshBtn = document.getElementById('refreshBtn');
+  const msg  = document.getElementById('msg');
+  msg.style.display = 'none';
+  grid.innerHTML = '<div class="spinner"></div>';
 
-  // read UI filters
-  const status = document.getElementById('statusFilter').value || '';
-  const activeIcon = document.querySelector('.icon-btn.active');
-  const platform = activeIcon ? (activeIcon.dataset.platform || '') : '';
+  // read current filters
+  const status   = document.getElementById('statusFilter')?.value || '';
+  const activeBtn = document.querySelector('.platform .btn.active');
+  const platform = activeBtn ? (activeBtn.dataset.platform || '') : '';
 
-  // start refresh animation (just visual)
-  refreshBtn.classList.add('spinning');
+  // build URL
+  const params = new URLSearchParams({ status, platform });
+  if (cacheBust) params.set('_ts', Date.now()); // defeat any CDN cache
+  const url = `/api/feed?${params.toString()}`;
 
-  // build URL to your API route
-  const url = new URL('/api/feed', window.location.origin);
-  if (status)   url.searchParams.set('status', status);
-  if (platform) url.searchParams.set('platform', platform);
-
-  // fetch data
-  let data;
   try {
-    const res = await fetch(url.toString(), { cache: 'no-store' });
-    data = await res.json();
-  } catch (e) {
-    console.error('Feed error', e);
-    data = { items: [] };
-  }
+    const res = await fetch(url, { cache: 'no-store' });
+    const data = await res.json();
+    const items = (data && data.items) ? data.items : [];
 
-  // small delay so the refresh spin is visible
-  await wait(150);
-
-  refreshBtn.classList.remove('spinning');
-
-  // render
-  grid.innerHTML = '';
-  const items = Array.isArray(data.items) ? data.items : [];
-
-  if (!items.length) {
-    empty.style.display = 'block';
-    return;
-  } else {
-    empty.style.display = 'none';
-  }
-
-  items.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'card';
-
-    // image
-    if (item.image && typeof item.image === 'string' && item.image.startsWith('http')) {
-      const img = document.createElement('img');
-      img.src = item.image;
-      img.alt = item.title || '';
-      img.loading = 'lazy';
-      img.referrerPolicy = 'no-referrer';
-      img.onerror = () => {
-        // fallback if URL expired
-        card.innerHTML = `<div class="placeholder">No image</div>`;
-      };
-      card.appendChild(img);
-    } else {
-      card.innerHTML = `<div class="placeholder">No image</div>`;
+    if (!items.length) {
+      grid.innerHTML = '';
+      msg.textContent = 'No posts match your filters yet.';
+      msg.style.display = 'block';
+      return;
     }
 
-    // status badge
-    if (item.status) {
-      const badge = document.createElement('div');
-      badge.className = 'badge';
-      badge.textContent = item.status;
-      card.appendChild(badge);
-    }
+    // render cards
+    grid.innerHTML = '';
+    items.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'card';
 
-    grid.appendChild(card);
-  });
+      const imgOk = item.image && String(item.image).startsWith('http');
+      if (imgOk) {
+        const img = document.createElement('img');
+        img.src = item.image;
+        img.alt = item.title || 'Post';
+        div.appendChild(img);
+      } else {
+        div.innerHTML = '<div class="empty">No image</div>';
+      }
+
+      if (item.status) {
+        const badge = document.createElement('div');
+        badge.className = 'badge';
+        badge.textContent = item.status;
+        div.appendChild(badge);
+      }
+
+      grid.appendChild(div);
+    });
+
+  } catch (err) {
+    console.error('Fetch error', err);
+    grid.innerHTML = '';
+    msg.textContent = 'Could not load data. Open the console or visit /api/feed to check the error.';
+    msg.style.display = 'block';
+  }
 }
 
-// wire up controls
-function setupControls() {
-  // platform icons
-  const bar = document.getElementById('platformBar');
-  bar.addEventListener('click', (e) => {
-    const btn = e.target.closest('.icon-btn');
-    if (!btn) return;
-    bar.querySelectorAll('.icon-btn').forEach(b => b.classList.remove('active'));
+// platform buttons
+document.querySelectorAll('.platform .btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.platform .btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     loadGrid();
   });
+});
 
-  // status dropdown
-  document.getElementById('statusFilter').addEventListener('change', loadGrid);
+// dropdown & refresh
+document.getElementById('statusFilter')?.addEventListener('change', () => loadGrid());
+document.getElementById('refresh')?.addEventListener('click', () => loadGrid(true));
 
-  // refresh button
-  document.getElementById('refreshBtn').addEventListener('click', loadGrid);
-}
-
-// init
-setupControls();
+// first paint
 loadGrid();
