@@ -1,108 +1,119 @@
-// public/script.js
+// /public/script.js  (compat, no optional chaining)
 
-async function loadGrid() {
-  const grid = document.getElementById('grid');
-  const refreshBtn = document.getElementById('refresh');
-
-  // show a quick skeleton grid on every load
-  renderSkeletons(grid);
-
-  try {
-    refreshBtn.disabled = true;
-
-    // If you later add a status dropdown with id="statusFilter", we read it safely.
-    const status = document.getElementById('statusFilter')?.value || '';
-    const url = '/api/feed?' + new URLSearchParams({ status }).toString();
-
-    // no-store so Refresh really re-requests images/urls
-    const res = await fetch(url, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`API ${res.status}`);
-
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
-
-    grid.innerHTML = '';
-
-    if (!items.length) {
-      grid.insertAdjacentHTML(
-        'beforeend',
-        `<div style="grid-column: 1 / -1; padding:16px; color:#666;">No posts yet.</div>`
-      );
-      return;
-    }
-
-    // Build cards
-    items.forEach((item, i) => {
-      const card = document.createElement('div');
-      card.className = 'card';
-
-      const media = document.createElement('div');
-      media.className = 'media';
-
-      // Only render <img> if it looks like a real URL
-      if (item.image && /^https?:\/\//i.test(item.image)) {
-        const img = createSmartImage(item.image, item.title || '', i < 6);
-        media.appendChild(img);
-      } else {
-        // fallback (keeps the square)
-        const ph = document.createElement('div');
-        ph.className = 'skeleton';
-        media.appendChild(ph);
-      }
-
-      card.appendChild(media);
-      grid.appendChild(card);
-    });
-  } catch (err) {
-    console.error('[widget] load error:', err);
-    grid.innerHTML = '';
-    grid.insertAdjacentHTML(
-      'beforeend',
-      `<div style="grid-column: 1 / -1; padding:16px; color:#c00;">Could not load posts. Check Console for details.</div>`
-    );
-  } finally {
-    refreshBtn.disabled = false;
+function formatBadge(dateStr){
+  if(!dateStr) return '';
+  try{
+    var d = new Date(dateStr);
+    return d.toLocaleDateString(undefined, { month:'short', day:'numeric' });
+  }catch(e){
+    return '';
   }
 }
 
-/* ---------- helpers ---------- */
-
-// quick placeholders sized like the final cards (square)
 function renderSkeletons(grid) {
   grid.innerHTML = '';
-  const count = Math.min(12, Math.max(6, Math.ceil(grid.clientWidth / 120) * 3));
-  for (let i = 0; i < count; i++) {
-    const s = document.createElement('div');
+  var count = 9; // 3x3
+  for (var i = 0; i < count; i++) {
+    var s = document.createElement('div');
     s.className = 'skeleton';
     grid.appendChild(s);
   }
 }
 
-// create an img optimized for a square grid
-function createSmartImage(src, alt, eager = false) {
-  const img = document.createElement('img');
-  img.alt = alt || '';
-  img.decoding = 'async';
-  img.loading = eager ? 'eager' : 'lazy';
-  if ('fetchPriority' in img) img.fetchPriority = eager ? 'high' : 'low';
+function loadGrid(){
+  var grid = document.getElementById('grid');
+  var refreshBtn = document.getElementById('refresh');
 
-  // Let the browser size it perfectly for our square grid
-  // If your image host supports transforms, you could add a width param here.
-  img.src = src;
+  renderSkeletons(grid);
 
-  // Prevent layout shift: give the browser a square aspect hint
-  // (width/height don't change the final layout because the container is square)
-  img.width = 1080;
-  img.height = 1080;
+  try{
+    if (refreshBtn) refreshBtn.disabled = true;
 
-  // Fallback handler
-  img.onerror = () => {
-    img.replaceWith(Object.assign(document.createElement('div'), { className: 'skeleton' }));
-  };
+    fetch('/api/feed', { cache: 'no-store' })
+      .then(function(res){
+        if(!res.ok) throw new Error('API ' + res.status);
+        return res.json();
+      })
+      .then(function(data){
+        var items = (data && Array.isArray(data.items)) ? data.items : [];
+        grid.innerHTML = '';
 
-  return img;
+        if(!items.length){
+          grid.insertAdjacentHTML(
+            'beforeend',
+            '<div style="grid-column:1/-1;padding:12px;color:#666;">No posts found.</div>'
+          );
+          return;
+        }
+
+        items.forEach(function(item, i){
+          var card = document.createElement('div');
+          card.className = 'card';
+
+          var badgeText = formatBadge(item && item.date);
+          if (badgeText){
+            var badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = badgeText;
+            card.appendChild(badge);
+          }
+
+          var media = document.createElement('div');
+          media.className = 'media';
+
+          var url = item && item.image;
+          var isHttp = url && /^https?:\/\//i.test(url);
+
+          if (isHttp){
+            var img = document.createElement('img');
+            img.alt = (item && item.title) || '';
+            img.decoding = 'async';
+            img.loading = (i < 6 ? 'eager' : 'lazy');
+            if ('fetchPriority' in img) img.fetchPriority = (i < 6 ? 'high' : 'low');
+            img.width = 1080;
+            img.height = 1080;
+            img.src = url;
+            img.onerror = function(){
+              var ph = document.createElement('div');
+              ph.className = 'skeleton';
+              media.innerHTML = '';
+              media.appendChild(ph);
+            };
+            media.appendChild(img);
+          } else {
+            var ph = document.createElement('div');
+            ph.className = 'skeleton';
+            media.appendChild(ph);
+          }
+
+          card.appendChild(media);
+          grid.appendChild(card);
+        });
+      })
+      .catch(function(err){
+        console.error('[widget] error:', err);
+        grid.innerHTML = '';
+        grid.insertAdjacentHTML(
+          'beforeend',
+          '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
+        );
+      })
+      .finally(function(){
+        if (refreshBtn) refreshBtn.disabled = false;
+      });
+
+  }catch(err){
+    console.error('[widget] error:', err);
+    grid.innerHTML = '';
+    grid.insertAdjacentHTML(
+      'beforeend',
+      '<div style="grid-column:1/-1;padding:12px;color:#b91c1c;">Could not load posts. Check the Console.</div>'
+    );
+    if (refreshBtn) refreshBtn.disabled = false;
+  }
 }
 
-// wire up refresh + first load
-document.getElementById('refresh')?.addEventListener('click', () => loadGrid());
+var refreshEl = document.getElementById('refresh');
+if (refreshEl) refreshEl.addEventListener('click', loadGrid);
 document.addEventListener('DOMContentLoaded', loadGrid);
+
