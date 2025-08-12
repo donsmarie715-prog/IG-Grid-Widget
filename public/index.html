@@ -5,74 +5,123 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Instagram Grid Widget</title>
   <style>
-    :root{
-      --cols-desktop: 3;
-      --cols-mobile: 2;
-      --gap: 2px;
-      --radius: 8px;
-      --max-width: 760px;
-    }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; background: #fff; color: #111;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
-
-    .wrap { max-width: var(--max-width); margin: 0 auto; padding: 6px 0; }
-
-    header { display:flex; justify-content:flex-end; padding:4px 0 2px;
-      position:sticky; top:0; z-index:5; background:#fff; }
-    #refresh {
-      appearance:none; cursor:pointer; border:1px solid #e5e7eb;
-      background:#fff; color:#111; border-radius:10px;
-      padding:6px 10px; font-size:12px; font-weight:600;
-    }
-    #refresh:disabled { opacity:.6; cursor:default; }
-
+    :root { color-scheme: light dark; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; }
+    header { padding: 18px 20px; font-weight: 700; }
     #grid {
-      display:grid;
-      grid-template-columns: repeat(var(--cols-mobile), 1fr);
-      gap: var(--gap);
-      margin: 4px 0 0;
-      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 12px;
+      padding: 0 20px 40px;
     }
-    @media (min-width: 640px) {
-      #grid { grid-template-columns: repeat(var(--cols-desktop), 1fr); }
+    .card { position: relative; }
+    .card img {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      object-fit: cover;
+      border-radius: 10px;
+      display: block;
+      background: #eee;
     }
-
-    .card { position:relative; width:100%; aspect-ratio:1/1;
-      overflow:hidden; border-radius:var(--radius); background:#f7f7f7; }
-    .media { width:100%; height:100%; }
-    .media img { width:100%; height:100%; object-fit:cover; display:block; background:#eee; }
-
     .badge {
-      position:absolute; top:6px; left:6px;
-      font-size:11px; font-weight:700; line-height:1;
-      color:#fff; background:rgba(17,17,17,.88);
-      border-radius:7px; padding:3px 7px;
-      box-shadow:0 2px 5px rgba(0,0,0,.12);
-      user-select:none; pointer-events:none;
+      position: absolute;
+      left: 8px;
+      bottom: 8px;
+      font-size: 12px;
+      background: rgba(0,0,0,.65);
+      color: #fff;
+      padding: 4px 8px;
+      border-radius: 999px;
     }
-
+    .empty, .error {
+      padding: 16px 20px;
+      color: #666;
+    }
     .skeleton {
-      width:100%; aspect-ratio:1/1; border-radius:var(--radius);
-      background:linear-gradient(90deg,#ececec,#f5f5f5,#ececec);
-      background-size:200% 100%; animation:pulse 1s linear infinite;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 10px;
+      background: linear-gradient(90deg, #eee, #f5f5f5, #eee);
+      background-size: 200% 100%;
+      animation: pulse 1s linear infinite;
     }
-    @keyframes pulse { 0%{background-position:0 0} 100%{background-position:200% 0} }
+    @keyframes pulse {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header>
-      <button id="refresh" type="button">Refresh</button>
-    </header>
-
-    <div id="grid" aria-live="polite">
-      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
-      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
-      <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
-    </div>
+  <header>Instagram Grid Widget</header>
+  <div id="grid" aria-live="polite">
+    <!-- skeletons while loading -->
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
+    <div class="skeleton"></div>
   </div>
 
-  <script src="/script.js" defer></script>
+  <script>
+    async function loadGrid() {
+      const grid = document.getElementById('grid');
+      try {
+        // Read optional filters safely (won’t crash if elements don’t exist)
+        const params   = new URLSearchParams(window.location.search);
+        const status   = params.get('status')   || document.getElementById('statusFilter')?.value   || '';
+        const platform = params.get('platform') || document.getElementById('platformFilter')?.value || '';
+
+        const url = '/api/feed?' + new URLSearchParams({ status, platform });
+        console.log('[widget] fetching:', url);
+
+        const res   = await fetch(url);
+        const data  = await res.json();
+        const items = data.items || [];
+
+        console.log('[widget] items:', items);
+
+        grid.innerHTML = ''; // clear skeletons
+
+        if (!items.length) {
+          grid.insertAdjacentHTML('beforebegin', '<div class="empty">No posts found.</div>');
+          return;
+        }
+
+        items.forEach(item => {
+          const div = document.createElement('div');
+          div.className = 'card';
+
+          // Only render <img> if the URL looks like a real URL
+          if (item.image && /^https?:\/\//i.test(item.image)) {
+            const img = document.createElement('img');
+            img.src = item.image;
+            img.alt = item.title || '';
+            div.appendChild(img);
+          } else {
+            const ph = document.createElement('div');
+            ph.className = 'skeleton';
+            div.appendChild(ph);
+          }
+
+          if (item.status) {
+            const badge = document.createElement('div');
+            badge.className = 'badge';
+            badge.textContent = item.status;
+            div.appendChild(badge);
+          }
+
+          grid.appendChild(div);
+        });
+      } catch (err) {
+        console.error('[widget] error:', err);
+        grid.innerHTML = '';
+        grid.insertAdjacentHTML('beforebegin',
+          '<div class="error">Could not load posts. Open the Console for details.</div>');
+      }
+    }
+
+    loadGrid();
+  </script>
 </body>
 </html>
