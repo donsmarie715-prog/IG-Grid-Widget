@@ -2,7 +2,6 @@
   "name": "ig-grid-widget",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": ">=18" },
   "dependencies": {
     "@notionhq/client": "^2.2.10"
   }
