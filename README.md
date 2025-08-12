@@ -15,7 +15,7 @@ This tiny app reads a Notion database (via the Notion API) and renders an Instag
 ## Notion database fields expected
 
 - `Image` — Files & media (first file is used as the thumbnail)
-- `Post Date` — date (optional, used for sorting)
+- `Scheduled Date` — date (optional, used for sorting)
 - `Status` — select (optional, used for filtering)
 - `Platform` — multi-select (e.g., Instagram, TikTok)
 - `Post Title` or `Name` — title (optional, used for alt text)
