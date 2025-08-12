@@ -10,14 +10,20 @@ module.exports = async (req, res) => {
       return res.status(400).json({ error: "Missing NOTION_TOKEN or DATABASE_ID" });
     }
 
-    // Quick sanity: can we access this database?
-    await notion.databases.retrieve({ database_id: databaseId });
-
-    // Query (no filters for now)
-    const resp = await notion.databases.query({
-      database_id: databaseId,
-      sorts: [{ property: "Post Date", direction: "ascending" }],
-    });
+    // Try sorting by "Scheduled Date"; if that property doesn't exist, fall back to "Post Date".
+    let resp;
+    try {
+      resp = await notion.databases.query({
+        database_id: databaseId,
+        sorts: [{ property: "Scheduled Date", direction: "ascending" }],
+      });
+    } catch (e) {
+      // Fallback to the old property name
+      resp = await notion.databases.query({
+        database_id: databaseId,
+        sorts: [{ property: "Post Date", direction: "ascending" }],
+      });
+    }
 
     const items = resp.results.map((page) => {
       const p = page.properties;
@@ -29,12 +35,13 @@ module.exports = async (req, res) => {
 
       const status = p["Status"]?.select?.name || "";
 
-      // Prefer Scheduled Date if present, fallback to Post Date
+      // Prefer Scheduled Date; fall back to Post Date
       const date =
         p["Scheduled Date"]?.date?.start ||
         p["Post Date"]?.date?.start ||
         null;
 
+      // Image can be Notion file or external URL
       const files = p["Image"]?.files || [];
       const image = files[0]?.file?.url || files[0]?.external?.url || null;
 
@@ -44,14 +51,10 @@ module.exports = async (req, res) => {
       return { id: page.id, title, status, date, image, caption, hashtags };
     });
 
-    res.setHeader("Cache-Control", "no-store");
+    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
     return res.status(200).json({ items });
-  } catch (e) {
-    // Log the detailed Notion error to Vercel logs
-    console.error("API /api/feed error:", e.body || e.message || e);
-
-    // Return a safe error, with optional hint if ?debug=1
-    const hint = req.query.debug ? (e.body || e.message || String(e)) : undefined;
-    return res.status(500).json({ error: "Failed to fetch data", hint });
+  } catch (err) {
+    console.error("[/api/feed] error:", err);
+    return res.status(500).json({ error: "Failed to fetch data" });
   }
 };
