@@ -7,59 +7,51 @@ const databaseId = process.env.DATABASE_ID;
 module.exports = async (req, res) => {
   try {
     if (!databaseId || !process.env.NOTION_TOKEN) {
-      return res
-        .status(400)
-        .json({ error: "Missing NOTION_TOKEN or DATABASE_ID" });
+      return res.status(400).json({ error: "Missing NOTION_TOKEN or DATABASE_ID" });
     }
 
-    // Try a sort by Scheduled Date; if that fails, try Post Date; else no sort.
-    let resp;
-    try {
-      resp = await notion.databases.query({
-        database_id: databaseId,
-        sorts: [{ property: "Scheduled Date", direction: "ascending" }],
-      });
-    } catch (e1) {
-      try {
-        resp = await notion.databases.query({
-          database_id: databaseId,
-          sorts: [{ property: "Post Date", direction: "ascending" }],
-        });
-      } catch (e2) {
-        // fall back to no sort at all
-        resp = await notion.databases.query({ database_id: databaseId });
-      }
-    }
+    // Quick sanity: can we access this database?
+    await notion.databases.retrieve({ database_id: databaseId });
+
+    // Query (no filters for now)
+    const resp = await notion.databases.query({
+      database_id: databaseId,
+      sorts: [{ property: "Post Date", direction: "ascending" }],
+    });
 
     const items = resp.results.map((page) => {
-      const p = page.properties || {};
+      const p = page.properties;
 
       const title =
         p["Post Title"]?.title?.[0]?.plain_text ||
         p["Name"]?.title?.[0]?.plain_text ||
         "Untitled";
 
-      // Prefer Scheduled Date, then Post Date, else null
+      const status = p["Status"]?.select?.name || "";
+
+      // Prefer Scheduled Date if present, fallback to Post Date
       const date =
         p["Scheduled Date"]?.date?.start ||
         p["Post Date"]?.date?.start ||
         null;
 
       const files = p["Image"]?.files || [];
-      const image =
-        files[0]?.file?.url ||
-        files[0]?.external?.url ||
-        null;
+      const image = files[0]?.file?.url || files[0]?.external?.url || null;
 
-      const status = p["Status"]?.select?.name || "";
+      const caption = p["Caption"]?.rich_text?.[0]?.plain_text || "";
+      const hashtags = p["Hashtags"]?.rich_text?.[0]?.plain_text || "";
 
-      return { id: page.id, title, date, image, status };
+      return { id: page.id, title, status, date, image, caption, hashtags };
     });
 
-    res.setHeader("Cache-Control", "s-maxage=60, stale-while-revalidate=300");
+    res.setHeader("Cache-Control", "no-store");
     return res.status(200).json({ items });
-  } catch (err) {
-    console.error("API error:", err);
-    return res.status(500).json({ error: "Failed to query Notion" });
+  } catch (e) {
+    // Log the detailed Notion error to Vercel logs
+    console.error("API /api/feed error:", e.body || e.message || e);
+
+    // Return a safe error, with optional hint if ?debug=1
+    const hint = req.query.debug ? (e.body || e.message || String(e)) : undefined;
+    return res.status(500).json({ error: "Failed to fetch data", hint });
   }
 };
